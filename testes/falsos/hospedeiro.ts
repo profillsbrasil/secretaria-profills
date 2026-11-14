@@ -42,7 +42,7 @@ if (import.meta.main) {
   const banco = abrirOBanco(pedido.dirDados, pedido.dirVazio, agora());
   const cofre = abrirCofre({ backend: "arquivo", idInstalacao: "bancada", dirDados: pedido.dirDados });
   const registro = criarRegistro({ escrever: () => {}, agora });
-  const conectores = criarConectores(ambiente, banco, cofre, { registro });
+  const conectores = criarConectores(ambiente, banco, cofre, { registro, sincronizacaoAutomatica: false });
   const contar = () => process.stdout.write(JSON.stringify(conectores.estado()) + "\n");
   conectores.assinar(contar);
   await conectores.pronto;

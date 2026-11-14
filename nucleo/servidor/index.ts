@@ -53,6 +53,8 @@ export interface OpcoesDoServidor {
   /** Troca o cofre, para o teste simular um chaveiro que não responde. */
   readonly abrirCofre?: typeof abrirCofre;
   readonly prazoDoCofreMs?: number;
+  /** Só o teste desliga. Ver `OpcoesDosConectores.sincronizacaoAutomatica`. */
+  readonly sincronizacaoAutomatica?: boolean;
 }
 
 /** O servidor escreve uma linha JSON por evento em `<dados>/logs/servidor.log`. */
@@ -149,7 +151,11 @@ export async function iniciarServidor(ambiente: Ambiente, opcoes: OpcoesDoServid
     const porta = servidor.port ?? ambiente.porta;
     const origem = `http://127.0.0.1:${porta}`;
     const supervisor = opcoes.supervisor ?? criarSupervisor({ plataforma: ambiente.plataforma, registro });
-    const ligados = criarConectores({ ...ambiente, porta }, banco, cofre, { registro, supervisor });
+    const ligados = criarConectores({ ...ambiente, porta }, banco, cofre, {
+      registro,
+      supervisor,
+      ...(opcoes.sincronizacaoAutomatica === undefined ? {} : { sincronizacaoAutomatica: opcoes.sincronizacaoAutomatica }),
+    });
     conectores = ligados;
     const retrato = (): EstadoPainel => montarEstadoPainel(instalacao, ligados.estado());
     const publicando = criarPublicador(retrato);

@@ -165,6 +165,11 @@ export interface OpcoesDosConectores {
   readonly limites?: { readonly tetoDeEmailPorPasta?: number; readonly prazoDaRodadaMs?: number };
   /** Prazo de `atendimentosDesde`, em ms. O padrão é 60 s. */
   readonly prazoDosAtendimentosMs?: number;
+  /**
+   * Os dois gatilhos de `decidirSincronizacaoAutomatica`. Ligado por padrão. Desligado, conectar não sincroniza, e
+   * `sincronizarAoAbrirOPainel` devolve a decisão sem rodar: o teste que conecta como preparação não ganha rodada.
+   */
+  readonly sincronizacaoAutomatica?: boolean;
 }
 
 /**
@@ -255,7 +260,7 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
   }
 
   function disparar(decisao: DecisaoAutomatica): void {
-    if (!decisao.dispara || parando !== null) return;
+    if (!decisao.dispara || !automatica || parando !== null) return;
     registro.info("sincronizacao.automatica", decisao.motivo === "conectou" ? { motivo: decisao.motivo, conector: decisao.conector } : { motivo: decisao.motivo, fonte: decisao.fonte });
     const rodada = sincronizar();
     // A rodada em voo começou antes desta conexão e pode ter pulado a fonte dela: roda mais uma, depois dela.
@@ -263,6 +268,7 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
     void feita.catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
   }
 
+  const automatica = opcoes.sincronizacaoAutomatica ?? true;
   let retratoAnterior = estado();
   ouvintes.add((depois) => {
     const decisao = decidir({ tipo: "conectores_mudaram", antes: retratoAnterior, depois });

@@ -29,18 +29,10 @@ async function conectar(conectores: Conectores): Promise<void> {
   expect(retorno.ok && retorno.dados.fase).toBe("conectado");
 }
 
-/**
- * O CRM conectado e o cache vazio. Conectar dispara uma rodada: ela termina, o cache que ela gravou sai
- * e o CRM falso esquece as chamadas dela, e o teste começa do zero.
- */
 async function ligado(): Promise<Conectores> {
   const conectores = nova().ligar();
   await conectores.pronto;
-  const terminou = new Promise<void>((resolver) => conectores.assinarSincronizacao((andamento) => andamento.etapa === "terminou" && resolver()));
   await conectar(conectores);
-  await terminou;
-  apagarCache(bancada.banco);
-  crm.zerarChamadas();
   return conectores;
 }
 

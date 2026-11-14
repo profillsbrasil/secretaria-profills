@@ -8,7 +8,6 @@ import { definirBackendDoCofre } from "../../nucleo/banco";
 import type { EstadoAgente, EstadoPainel } from "../../nucleo/dominio";
 import { iniciarServidor, lerArquivoDoServidor, type ArquivoDoServidor, type ServidorRodando } from "../../nucleo/servidor";
 import { montarBancada, type Alvos, type Bancada } from "../falsos/bancada";
-import type { CrmFalso } from "../falsos/crm";
 import type { LeiturasDoWacliFalso, PassoDoWacliFalso } from "../falsos/wacli";
 
 const LIMITE_DA_ESPERA_MS = 15_000;
@@ -150,14 +149,20 @@ function lerEventos<E>(resposta: Response, guardar: string[]): Eventos<E> {
   };
 }
 
-export async function subirPalco(alvos: Alvos = {}): Promise<Palco> {
+export interface OpcoesDoPalco {
+  /** A sincronização dos dois momentos do vendedor. Desligada no palco: só o teste dela liga. */
+  readonly sincronizacaoAutomatica?: boolean;
+}
+
+export async function subirPalco(alvos: Alvos = {}, opcoes: OpcoesDoPalco = {}): Promise<Palco> {
+  const doServidor = { sincronizacaoAutomatica: opcoes.sincronizacaoAutomatica ?? false };
   const bancada = montarBancada({ ...alvos, porta: 0 });
   // O cofre do teste é sempre o arquivo: o servidor nunca toca o chaveiro de quem roda o teste.
   definirBackendDoCofre(bancada.banco, "arquivo");
   bancada.banco.fechar();
   const vistoPeloAgente: string[] = [];
   const abertos: Eventos<unknown>[] = [];
-  let servidor = await iniciarServidor(bancada.ambiente);
+  let servidor = await iniciarServidor(bancada.ambiente, doServidor);
   let arquivo = lerArquivoDoServidor(caminhosDosDados(bancada.ambiente).servidor);
   if (arquivo === null) throw new Error("o servidor não gravou o servidor.json");
   let cookie = "";
@@ -213,7 +218,7 @@ export async function subirPalco(alvos: Alvos = {}): Promise<Palco> {
       for (const eventos of abertos.splice(0)) eventos.fechar();
       await servidor.parar();
       parado?.();
-      servidor = await iniciarServidor(bancada.ambiente);
+      servidor = await iniciarServidor(bancada.ambiente, doServidor);
       arquivo = lerArquivoDoServidor(caminhosDosDados(bancada.ambiente).servidor);
     },
     async limpar() {
@@ -228,26 +233,7 @@ export const REPO = join(import.meta.dir, "..", "..");
 
 const JSON_NO_CORPO = { "Content-Type": "application/json" };
 
-/** O SSE traz o fim de uma rodada de sincronização. */
-export const FIM_DA_RODADA = '"etapa":"terminou"';
-
-/**
- * O vendedor faz o login do CRM pelo painel. Chegar a `conectado` dispara uma rodada: o helper espera ela
- * terminar e o CRM falso esquecer as chamadas dela, para o teste contar só as que ele faz.
- */
-export async function conectarCrmNoPalco(p: Palco, falso: CrmFalso): Promise<void> {
-  const eventos = await p.eventosDoPainel();
-  const destino = (await p.painel("/oauth/crm/iniciar")).headers.get("location");
-  if (destino === null) throw new Error("o painel não abriu o login do CRM");
-  const retorno = await p.cru(`/oauth/crm/retorno?${await falso.autorizar(destino)}`, { headers: { "Sec-Fetch-Site": "cross-site" } });
-  if (retorno.status !== 200) throw new Error(`o retorno do CRM respondeu HTTP ${retorno.status}`);
-  await eventos.ate((e) => e.conectores.crm.estado.fase === "conectado", "CRM conectado");
-  await eventos.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando o CRM conectou");
-  eventos.fechar();
-  falso.zerarChamadas();
-}
-
-/** O vendedor pareia e confirma a conta pelo painel: o WhatsApp fica `conectado`, e `leituras` é o que o wacli falso devolve ao ler. Espera a rodada que a conexão dispara. */
+/** O vendedor pareia e confirma a conta pelo painel: o WhatsApp fica `conectado`, e `leituras` é o que o wacli falso devolve ao ler. */
 export async function conectarWhatsappNoPalco(p: Palco, leituras: LeiturasDoWacliFalso = {}): Promise<void> {
   p.bancada.roteiro({ auth: PAREAR, sync: ESPELHAR, leituras });
   await p.servidor.pronto;
@@ -264,5 +250,4 @@ export async function conectarWhatsappNoPalco(p: Palco, leituras: LeiturasDoWacl
     const estado = e.conectores.whatsapp.estado;
     return estado.fase === "conectado" && estado.espelho === "ao_vivo";
   }, "espelho ao vivo");
-  await eventos.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando o WhatsApp conectou");
 }

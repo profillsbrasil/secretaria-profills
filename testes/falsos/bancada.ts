@@ -46,7 +46,10 @@ export interface Bancada {
   /** Solta um passo `aguardar` do roteiro: é o vendedor com o celular na mão. */
   celular(sinal: string): void;
   chamadas(): readonly ChamadaDoWacliFalso[];
-  /** Sobe os conectores de produção sobre esta bancada. `outroCofre` troca o cofre, para simular um chaveiro com defeito. */
+  /**
+   * Sobe os conectores de produção sobre esta bancada. `outroCofre` troca o cofre, para simular um chaveiro com defeito.
+   * A sincronização automática vem desligada: conectar é preparação nos outros testes, e só o teste dela a liga.
+   */
   ligar(opcoes?: OpcoesDosConectores, outroCofre?: Cofre): Conectores;
   /**
    * Sobe os conectores em outro processo, executa `acoes`, espera o retrato satisfazer `quando`
@@ -134,7 +137,7 @@ export function montarBancada(alvos: Alvos = {}): Bancada {
       const supervisor =
         opcoes.supervisor ??
         criarSupervisor({ registro, politica: { "whatsapp.espelho": POLITICA_RAPIDA, "whatsapp.pareamento": POLITICA_RAPIDA } });
-      const conectores = criarConectores(ambiente, banco, outroCofre, { registro, ...opcoes, supervisor });
+      const conectores = criarConectores(ambiente, banco, outroCofre, { registro, sincronizacaoAutomatica: false, ...opcoes, supervisor });
       ligados.push(conectores);
       return conectores;
     },
