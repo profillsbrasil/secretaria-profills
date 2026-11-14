@@ -1,4 +1,4 @@
-import { chaveDoItem } from "../dominio";
+import { chaveDoItem, fraseDoCadastroIncompleto } from "../dominio";
 import type {
   CanalDeVinculo,
   ClienteSemAtendimento,
@@ -119,6 +119,11 @@ function notaDosIgnorados(ignorados: number, um: string, varios: string): string
   return ignorados === 0 ? [] : [`${plural(ignorados, um, varios)} por 7 dias.`];
 }
 
+function notaDoCadastroIncompleto(bloco: { readonly fora_por_cadastro_incompleto: number }): string[] {
+  const frase = fraseDoCadastroIncompleto(bloco.fora_por_cadastro_incompleto);
+  return frase === null ? [] : [frase];
+}
+
 /** A chave da linha leva o canal: o telefone e o id de e-mail nunca se confundem. */
 function chaveDaLinha(conversa: Parameters<typeof chaveDoItem>[0]): string {
   return `conversa:${conversa.canal}:${chaveDoItem(conversa)}`;
@@ -205,7 +210,9 @@ export const BLOCOS: readonly DefinicaoDoBloco[] = [
         ...agenda.itens.map((compromisso) => ({ tipo: "compromisso" as const, chave: `compromisso:${compromisso.id}`, compromisso })),
       ];
       // As tarefas são locais e sempre lidas; só a parte da agenda depende do CRM.
-      const notas = ehMotivoSemLeitura(agenda.motivo) ? [`Compromissos do CRM: ${MOTIVOS[agenda.motivo].texto}`] : agenda.cortado ? [NOTA_DO_CORTE] : [];
+      const notas = ehMotivoSemLeitura(agenda.motivo)
+        ? [`Compromissos do CRM: ${MOTIVOS[agenda.motivo].texto}`]
+        : [...(agenda.cortado ? [NOTA_DO_CORTE] : []), ...notaDoCadastroIncompleto(agenda)];
       return { leitura: "lido", itens, notas };
     },
   },
@@ -257,7 +264,7 @@ export const BLOCOS: readonly DefinicaoDoBloco[] = [
       const bloco = dia.propostas_abertas;
       if (ehMotivoSemLeitura(bloco.motivo)) return { leitura: "nao_lido", fonte: "crm", motivo: bloco.motivo };
       const itens = bloco.itens.map((proposta): ItemDoDia => ({ tipo: "proposta", chave: `proposta:${proposta.id}`, proposta }));
-      return { leitura: "lido", itens, notas: [...(bloco.cortado ? [NOTA_DO_CORTE] : []), ...notaDosIgnorados(bloco.ignorados, "ignorada", "ignoradas")] };
+      return { leitura: "lido", itens, notas: [...(bloco.cortado ? [NOTA_DO_CORTE] : []), ...notaDoCadastroIncompleto(bloco), ...notaDosIgnorados(bloco.ignorados, "ignorada", "ignoradas")] };
     },
   },
   {
@@ -286,7 +293,7 @@ export const BLOCOS: readonly DefinicaoDoBloco[] = [
       const bloco = dia.clientes_sem_atendimento;
       if (ehMotivoSemLeitura(bloco.motivo)) return { leitura: "nao_lido", fonte: "crm", motivo: bloco.motivo };
       const itens = bloco.itens.map((cliente): ItemDoDia => ({ tipo: "cliente", chave: `cliente:${cliente.id}`, cliente }));
-      return { leitura: "lido", itens, notas: [...(bloco.cortado ? [NOTA_DO_CORTE] : []), ...notaDosIgnorados(bloco.ignorados, "ignorado", "ignorados")] };
+      return { leitura: "lido", itens, notas: [...(bloco.cortado ? [NOTA_DO_CORTE] : []), ...notaDoCadastroIncompleto(bloco), ...notaDosIgnorados(bloco.ignorados, "ignorado", "ignorados")] };
     },
   },
 ];

@@ -221,6 +221,24 @@ describe("tabela de blocos", () => {
     expect(propostas?.conteudo).toMatchObject({ notas: ["2 ignoradas por 7 dias."] });
     expect(clientes?.conteudo).toMatchObject({ notas: ["O CRM tem mais do que a Secretária lê de uma vez. Confira a lista completa no CRM."] });
   });
+
+  test("cada bloco do CRM diz quantos itens ficaram de fora por cadastro incompleto; com zero, nada", () => {
+    const comFora: LeiturasDoCrm = {
+      agenda: { ...TUDO_LIDO.agenda!, foraPorCadastroIncompleto: 1 },
+      propostas: { ...TUDO_LIDO.propostas!, foraPorCadastroIncompleto: 2 },
+      carteira: { ...TUDO_LIDO.carteira!, cortado: false, foraPorCadastroIncompleto: 3 },
+    };
+    const blocos = montarBlocos(dia({}, comFora));
+    const notas = (id: string) => {
+      const conteudo = blocos.find((b) => b.definicao.id === id)?.conteudo;
+      return conteudo?.leitura === "lido" ? conteudo.notas : null;
+    };
+    expect(notas("fazer-hoje")).toEqual(["1 item do CRM ficou de fora por cadastro incompleto. Corrija o cadastro no CRM."]);
+    expect(notas("propostas")).toEqual(["2 itens do CRM ficaram de fora por cadastro incompleto. Corrija o cadastro no CRM."]);
+    expect(notas("sem-atendimento")).toEqual(["3 itens do CRM ficaram de fora por cadastro incompleto. Corrija o cadastro no CRM."]);
+    const semFora = montarBlocos(dia({}, { ...TUDO_LIDO, carteira: { ...TUDO_LIDO.carteira!, cortado: false } }));
+    expect(semFora.flatMap(({ conteudo }) => (conteudo.leitura === "lido" ? conteudo.notas : []))).toEqual([]);
+  });
 });
 
 describe("bloco escolhido", () => {

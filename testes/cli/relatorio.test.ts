@@ -86,6 +86,7 @@ describe("o texto do relatório", () => {
       motivo: null,
       erro: null,
       cortado: false,
+      fora_por_cadastro_incompleto: 0,
       lido_em: "2026-11-13T22:10:00.000Z",
       dias: [
         {
@@ -121,6 +122,13 @@ describe("o texto do relatório", () => {
     expect(descrever({ ...base, atendimentos: { ...base.atendimentos, cortado: true } })).toContain("Os mais antigos do período ficaram de fora. Peça um período que comece mais perto de hoje.");
     const vazio = descrever({ ...base, atendimentos: { ...base.atendimentos, dias: [] }, contagens: { ...base.contagens, atendimentos: 0, clientes_atendidos: 0 } });
     expect(vazio).toContain("Atendimentos no CRM: nenhum no período.");
+  });
+
+  test("atendimentos de fora por cadastro incompleto: a contagem e o que o vendedor faz", () => {
+    expect(descrever({ ...base, atendimentos: { ...base.atendimentos, fora_por_cadastro_incompleto: 2 } })).toContain(
+      "Atendimentos de fora das contagens: 2 itens do CRM ficaram de fora por cadastro incompleto. Corrija o cadastro no CRM.",
+    );
+    expect(descrever(base)).not.toContain("cadastro incompleto");
   });
 
   test("CRM falhou: a ação do erro e a espera, e a frase da parte local", () => {

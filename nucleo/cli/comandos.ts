@@ -11,6 +11,7 @@ import {
   SEM_ATENDIMENTO_MAXIMO_DIAS,
   TIPOS_DE_IGNORADO,
   falha,
+  fraseDoCadastroIncompleto,
   lerEnderecoEmail,
   lerIdDoEmail,
   lerIdDoItemDeEmail,
@@ -627,11 +628,15 @@ function idadeDaFonte(fonte: IdadeDaFonte): string {
 }
 
 /** O cabeçalho de um bloco do CRM: a contagem, ou por que veio vazio, e quando foi lido. */
-function cabecalhoDoCrm(titulo: string, bloco: { readonly itens: readonly unknown[]; readonly lido_em: string | null; readonly motivo: string | null; readonly cortado: boolean }): string {
+function cabecalhoDoCrm(
+  titulo: string,
+  bloco: { readonly itens: readonly unknown[]; readonly lido_em: string | null; readonly motivo: string | null; readonly cortado: boolean; readonly fora_por_cadastro_incompleto: number },
+): string {
   const lido = bloco.lido_em === null ? "" : `, lido em ${bloco.lido_em}`;
   const cortado = bloco.cortado ? ", lista cortada" : "";
+  const fora = bloco.fora_por_cadastro_incompleto === 0 ? "" : `, ${bloco.fora_por_cadastro_incompleto} fora por cadastro incompleto no CRM`;
   if (bloco.motivo !== null && bloco.motivo !== "sem_itens") return `${titulo}: vazio (${bloco.motivo})${lido}.`;
-  return `${titulo} (${bloco.itens.length}${lido}${cortado}):`;
+  return `${titulo} (${bloco.itens.length}${lido}${cortado}${fora}):`;
 }
 
 const semEnviados = (rotulos: readonly string[]) =>
@@ -733,7 +738,8 @@ function linhaDaFonte(fonte: ResultadoDaFonte): string {
     case "leu": {
       const sem = fonte.semConsultaAoCrm;
       const consulta = sem === undefined ? "" : ` O CRM não foi consultado por número ou endereço novo (${sem.motivo}); valeram os vínculos que já existiam.${sem.erro?.esperaS === undefined ? "" : ` Espere ${sem.erro.esperaS} s.`}`;
-      return `${fonte.fonte}: leu ${fonte.itens}${fonte.cortado ? ", lista cortada" : ""}.${consulta}${linhasDasContas(fonte)}`;
+      const fora = fraseDoCadastroIncompleto(fonte.foraPorCadastroIncompleto ?? 0);
+      return `${fonte.fonte}: leu ${fonte.itens}${fonte.cortado ? ", lista cortada" : ""}.${fora === null ? "" : ` ${fora}`}${consulta}${linhasDasContas(fonte)}`;
     }
     case "falhou":
       return `${fonte.fonte}: falhou (${fonte.erro.codigo}). ${fonte.erro.acao}${linhasDasContas(fonte)}`;
@@ -792,6 +798,8 @@ function linhaDaLeituraDoRelatorio({ atendimentos, contagens }: Relatorio): stri
       linhas.push(`- ${cliente}: ${item.assunto ?? "assunto retido: o vendedor confere no CRM"} (${item.status})`);
     }
   }
+  const fora = fraseDoCadastroIncompleto(atendimentos.fora_por_cadastro_incompleto ?? 0);
+  if (fora !== null) linhas.push(`Atendimentos de fora das contagens: ${fora}`);
   if (atendimentos.cortado) {
     linhas.push("O CRM tinha mais atendimentos, do início do período até hoje, do que a Secretária lê de uma vez. Os mais antigos do período ficaram de fora. Peça um período que comece mais perto de hoje.");
   }

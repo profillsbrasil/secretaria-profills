@@ -130,6 +130,13 @@ export const SEM_ATENDIMENTO_MAXIMO_DIAS = 3650;
 export const AVISO_DO_PRAZO_DE_RETORNO =
   "Vencidos 30 dias do envio sem o retorno do cliente registrado na tela do CRM, o CRM bloqueia proposta nova sua para esse cliente.";
 
+/** A frase de `fora_por_cadastro_incompleto` para o vendedor, igual no painel e no CLI. `null` com zero. */
+export function fraseDoCadastroIncompleto(fora: number): string | null {
+  if (fora === 0) return null;
+  const quantos = fora === 1 ? "1 item do CRM ficou" : `${fora} itens do CRM ficaram`;
+  return `${quantos} de fora por cadastro incompleto. Corrija o cadastro no CRM.`;
+}
+
 /** Por que um bloco veio vazio. `sem_itens` é leitura feita e lista vazia. */
 export type MotivoDoBloco =
   | "sem_itens"

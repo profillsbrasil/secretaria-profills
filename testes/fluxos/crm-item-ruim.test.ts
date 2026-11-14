@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { listarTarefas } from "../../nucleo/banco";
+import { COMANDOS } from "../../nucleo/cli/comandos";
 import { Segredo } from "../../nucleo/cofre";
 import type { Conectores, ResultadoDaFonte, Sincronizacao } from "../../nucleo/conectores";
 import { criarLeitor, type LeitorDoCrm } from "../../nucleo/conectores/crm/leitura";
@@ -197,6 +198,12 @@ describe("sincronização e Meu dia: a contagem chega a quem mostra", () => {
     expect(dia.propostas_abertas).toMatchObject({ fora_por_cadastro_incompleto: 1 });
     expect(dia.propostas_abertas.itens).toHaveLength(5);
     expect(dia.clientes_sem_atendimento).toMatchObject({ fora_por_cadastro_incompleto: 1 });
+
+    const texto = (nome: string, dados: unknown) => (COMANDOS.find((comando) => comando.nome === nome)?.descrever as (dados: unknown) => string)(dados);
+    expect(texto("sincronizar", rodada)).toContain("agenda: leu 2. 1 item do CRM ficou de fora por cadastro incompleto. Corrija o cadastro no CRM.");
+    expect(texto("meu-dia", dia)).toContain("Propostas enviadas sem retorno (5, lido em");
+    expect(texto("meu-dia", dia)).toContain(", 1 fora por cadastro incompleto no CRM):");
+    expect(dia.compromissos_de_hoje.itens.map((c) => c.id)).not.toContain(590);
   });
 
   test("sem item ruim, a contagem é zero", async () => {
