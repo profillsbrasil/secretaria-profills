@@ -243,15 +243,28 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
 
   /** Só em memória: depois de um reinício, a primeira abertura do painel decide pelo `lido_em` das fontes. */
   let ultimaRodada: { readonly iniciadaEm: Instante; readonly esperarAte: Instante | null } | null = null;
+  /** Assenta quando a rodada que roda agora termina, de qualquer origem. `null` sem rodada. */
+  let emVoo: Promise<void> | null = null;
+  /**
+   * A conexão que chegou com uma rodada em voo, que pode ter começado antes dela e pulado a fonte dela. Uma vaga só:
+   * as conexões que chegam durante a mesma rodada viram uma rodada depois dela.
+   */
+  let conexaoNaFila: GatilhoAutomatico | null = null;
 
   function sincronizar(opcoes?: OpcoesDaSincronizacao): Promise<Sincronizacao> {
-    const rodada = sincronizador.sincronizar(opcoes);
-    void rodada.then(
-      (feita) => {
-        ultimaRodada = { iniciadaEm: feita.iniciadaEm, esperarAte: esperaPedidaNaRodada(feita) };
-      },
+    const rodada = sincronizador.sincronizar(opcoes).then((feita) => {
+      ultimaRodada = { iniciadaEm: feita.iniciadaEm, esperarAte: esperaPedidaNaRodada(feita) };
+      return feita;
+    });
+    // Quem pediu a rodada recebe a rejeição dela; a marca só diz que ela terminou.
+    const terminou = rodada.then(
+      () => {},
       () => {},
     );
+    emVoo = terminou;
+    void terminou.then(() => {
+      if (emVoo === terminou) emVoo = null;
+    });
     return rodada;
   }
 
@@ -259,23 +272,48 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
     return decidirSincronizacaoAutomatica({ gatilho, agora: ambiente.agora(), ultimaRodadaEm: ultimaRodada?.iniciadaEm ?? null, esperarAte: ultimaRodada?.esperarAte ?? null });
   }
 
-  function disparar(decisao: DecisaoAutomatica): void {
-    if (!decisao.dispara || !automatica || parando !== null) return;
-    registro.info("sincronizacao.automatica", decisao.motivo === "conectou" ? { motivo: decisao.motivo, conector: decisao.conector } : { motivo: decisao.motivo, fonte: decisao.fonte });
-    const rodada = sincronizar();
-    // A rodada em voo começou antes desta conexão e pode ter pulado a fonte dela: roda mais uma, depois dela.
-    const feita = decisao.motivo === "conectou" ? rodada.then((lida) => (lida.jaEmAndamento ? sincronizar() : lida)) : rodada;
-    void feita.catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
+  /** Roda se a decisão mandar. A decisão é tomada na hora de começar, com a última rodada e a espera do CRM já contadas. */
+  async function rodarSeDecidir(gatilho: GatilhoAutomatico): Promise<void> {
+    const decisao = decidir(gatilho);
+    if (!decisao.dispara) {
+      registro.info("sincronizacao.automatica_segurada", { motivo: decisao.motivo });
+      return;
+    }
+    if (parando !== null) return;
+    await sincronizar();
+  }
+
+  /** A conexão espera a rodada em voo e entra na vaga; quem acha a vaga ocupada deixa a rodada para quem a tem. */
+  async function rodarPorConexao(gatilho: GatilhoAutomatico): Promise<void> {
+    if (conexaoNaFila !== null) {
+      conexaoNaFila = gatilho;
+      return;
+    }
+    let proximo = gatilho;
+    while (emVoo !== null) {
+      conexaoNaFila = proximo;
+      await emVoo;
+      proximo = conexaoNaFila ?? proximo;
+      conexaoNaFila = null;
+    }
+    await rodarSeDecidir(proximo);
   }
 
   const automatica = opcoes.sincronizacaoAutomatica ?? true;
   let retratoAnterior = estado();
-  ouvintes.add((depois) => {
-    const decisao = decidir({ tipo: "conectores_mudaram", antes: retratoAnterior, depois });
-    retratoAnterior = depois;
-    // A senha da conta de e-mail e o espelho do WhatsApp entram nos efeitos, depois da fase: a rodada espera os efeitos assentarem.
-    if (decisao.dispara) void Promise.all(motores().map((motor) => motor.assentar())).then(() => disparar(decisao));
-  });
+  if (automatica) {
+    ouvintes.add((depois) => {
+      const gatilho: GatilhoAutomatico = { tipo: "conectores_mudaram", antes: retratoAnterior, depois };
+      retratoAnterior = depois;
+      const decisao = decidir(gatilho);
+      if (!decisao.dispara || decisao.motivo !== "conectou") return;
+      // A senha da conta de e-mail e o espelho do WhatsApp entram nos efeitos, depois da fase: a rodada espera os efeitos assentarem.
+      void Promise.all(motores().map((motor) => motor.assentar())).then(() => {
+        registro.info("sincronizacao.automatica", { motivo: decisao.motivo, conector: decisao.conector });
+        return rodarPorConexao(gatilho);
+      });
+    });
+  }
 
   const comUrl = <E>(resultado: Resultado<E>) => (resultado.ok ? ok({ estado: resultado.dados, urlAutorizacao: null }) : resultado);
   const acoes: { readonly [C in IdConectorUnico]: (acao: Acao, dados: unknown) => Promise<Resultado<RespostaDaAcao<C>>> } = {
@@ -334,7 +372,10 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
           email: lidoEmDasContas(banco),
         },
       });
-      disparar(decisao);
+      if (decisao.dispara && decisao.motivo !== "conectou" && automatica && parando === null) {
+        registro.info("sincronizacao.automatica", { motivo: decisao.motivo, fonte: decisao.fonte });
+        void sincronizar().catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
+      }
       return decisao;
     },
     leiturasDoCrm: () => sincronizador.leituras(),
