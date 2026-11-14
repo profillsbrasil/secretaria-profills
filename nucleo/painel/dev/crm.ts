@@ -99,20 +99,20 @@ export function leiturasDaFixture(fixture: FixtureDoCrm, agora: Instante): Leitu
     case "sem-leitura":
       return SEM_LEITURAS;
     case "vazio":
-      return { agenda: { dia: hoje, lidoEm, cortado: false, itens: [] }, propostas: { lidoEm, cortado: false, itens: [] }, carteira: { lidoEm, cortado: false, semAtendimentoHaDias: 30, itens: [] } };
+      return { agenda: { dia: hoje, lidoEm, foraPorCadastroIncompleto: 0, cortado: false, itens: [] }, propostas: { lidoEm, foraPorCadastroIncompleto: 0, cortado: false, itens: [] }, carteira: { lidoEm, foraPorCadastroIncompleto: 0, cortado: false, semAtendimentoHaDias: 30, itens: [] } };
     case "vencido":
       return {
-        agenda: { dia: hoje, lidoEm, cortado: false, itens: [] },
-        propostas: { lidoEm, cortado: false, itens: [proposta(72, "Construtora Canário", 34, hoje), proposta(81, "Metalúrgica Sabiá", 29, hoje)] },
-        carteira: { lidoEm, cortado: false, semAtendimentoHaDias: 30, itens: [] },
+        agenda: { dia: hoje, lidoEm, foraPorCadastroIncompleto: 0, cortado: false, itens: [] },
+        propostas: { lidoEm, foraPorCadastroIncompleto: 0, cortado: false, itens: [proposta(72, "Construtora Canário", 34, hoje), proposta(81, "Metalúrgica Sabiá", 29, hoje)] },
+        carteira: { lidoEm, foraPorCadastroIncompleto: 0, cortado: false, semAtendimentoHaDias: 30, itens: [] },
       };
     case "cheio":
     case "ignorados":
     case "cortado":
       return {
-        agenda: { dia: hoje, lidoEm, cortado: false, itens: compromissos(hoje) },
-        propostas: { lidoEm, cortado: fixture === "cortado", itens: propostas(hoje) },
-        carteira: { lidoEm, cortado: fixture === "cortado", semAtendimentoHaDias: 30, itens: carteira(agora) },
+        agenda: { dia: hoje, lidoEm, foraPorCadastroIncompleto: 0, cortado: false, itens: compromissos(hoje) },
+        propostas: { lidoEm, foraPorCadastroIncompleto: 0, cortado: fixture === "cortado", itens: propostas(hoje) },
+        carteira: { lidoEm, foraPorCadastroIncompleto: 0, cortado: fixture === "cortado", semAtendimentoHaDias: 30, itens: carteira(agora) },
       };
   }
 }

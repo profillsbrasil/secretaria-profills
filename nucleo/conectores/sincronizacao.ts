@@ -138,6 +138,8 @@ export type ResultadoDaFonte =
       readonly itens: number;
       readonly lidoEm: Instante;
       readonly cortado: boolean;
+      /** Só as fontes do CRM: itens com campo obrigatório vazio no cadastro, que ficaram de fora de `itens`. */
+      readonly foraPorCadastroIncompleto?: number;
       /** Só as fontes `conversas` e `email`: o CRM não foi consultado por número ou endereço novo (ou parou no meio), e a fonte usou os vínculos que já tinha. */
       readonly semConsultaAoCrm?: ConsultaAoCrm;
       /** Só a fonte `email`: uma linha por conta, na ordem da lista. `itens` é o total de cabeçalhos guardados das contas lidas. */
@@ -231,14 +233,18 @@ export interface DependenciasDoSincronizador {
 }
 
 const ref = z.object({ id: z.number(), nome: z.string() });
+/** A linha gravada antes desta contagem existir não tinha o campo: lê como zero. */
+const foraPorCadastroIncompleto = z.number().int().min(0).default(0);
 const guardado = {
   agenda: z.object({
     dia: z.string(),
     cortado: z.boolean(),
+    foraPorCadastroIncompleto,
     itens: z.array(z.object({ id: z.number(), titulo: z.string(), inicio: z.string(), fim: z.string().nullable(), tipo: z.string(), cliente: ref.nullable() })),
   }),
   propostas: z.object({
     cortado: z.boolean(),
+    foraPorCadastroIncompleto,
     itens: z.array(
       z.object({
         id: z.number(),
@@ -256,6 +262,7 @@ const guardado = {
   carteira: z.object({
     semAtendimentoHaDias: z.number(),
     cortado: z.boolean(),
+    foraPorCadastroIncompleto,
     itens: z.array(
       z.object({
         id: z.number(),
@@ -298,9 +305,9 @@ const guardado = {
   }),
 };
 
-type Agenda = { readonly dia: Dia; readonly cortado: boolean; readonly itens: readonly Compromisso[] };
-type Propostas = { readonly cortado: boolean; readonly itens: readonly PropostaEnviada[] };
-type Carteira = { readonly semAtendimentoHaDias: number; readonly cortado: boolean; readonly itens: readonly ClienteDaCarteira[] };
+type Agenda = { readonly dia: Dia; readonly cortado: boolean; readonly foraPorCadastroIncompleto: number; readonly itens: readonly Compromisso[] };
+type Propostas = { readonly cortado: boolean; readonly foraPorCadastroIncompleto: number; readonly itens: readonly PropostaEnviada[] };
+type Carteira = { readonly semAtendimentoHaDias: number; readonly cortado: boolean; readonly foraPorCadastroIncompleto: number; readonly itens: readonly ClienteDaCarteira[] };
 type Conversas = { readonly cortado: boolean; readonly itens: readonly ConversaLida[] };
 type ConversaAtiva = Conversa & { readonly ultimaMensagemEm: Instante };
 interface ConversaDoTelefone {
@@ -331,6 +338,8 @@ function lerConversasGuardadas(banco: BancoAberto): LeituraDeConversas | null {
 interface Lido {
   readonly itens: number;
   readonly cortado: boolean;
+  /** Só as fontes do CRM. */
+  readonly foraPorCadastroIncompleto?: number;
   gravar(lidoEm: Instante): void;
   /** O CRM pediu pausa no meio de uma leitura que ainda assim terminou. As fontes seguintes esperam. */
   readonly limite?: ErroOperacao;
@@ -352,24 +361,31 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
   async function lerAgenda(leitor: LeitorDoCrm, hoje: Dia): Promise<Resultado<Lido>> {
     const lida = await leitor.ler("minha_agenda", { de: hoje, ate: hoje });
     if (!lida.ok) return lida;
-    const valor: Agenda = { dia: hoje, cortado: lida.dados.mais, itens: lida.dados.compromissos };
-    return ok({ itens: valor.itens.length, cortado: valor.cortado, gravar: (lidoEm) => gravarCache(banco, "agenda", CHAVE_UNICA, valor, lidoEm) });
+    const valor: Agenda = { dia: hoje, cortado: lida.dados.mais, foraPorCadastroIncompleto: lida.dados.fora_por_cadastro_incompleto, itens: lida.dados.compromissos };
+    return ok({
+      itens: valor.itens.length,
+      cortado: valor.cortado,
+      foraPorCadastroIncompleto: valor.foraPorCadastroIncompleto,
+      gravar: (lidoEm) => gravarCache(banco, "agenda", CHAVE_UNICA, valor, lidoEm),
+    });
   }
 
   async function lerPropostas(leitor: LeitorDoCrm): Promise<Resultado<Lido>> {
     const enviadas: Omit<PropostaEnviada, "link">[] = [];
     let antes: number | undefined;
     let cortado = true;
+    let fora = 0;
     for (let pagina = 0; pagina < PAGINAS_NO_MAXIMO; pagina += 1) {
       const lida = await leitor.ler("listar_propostas", { escopo: "minhas", estagio: "enviada", limite: POR_PAGINA, ...(antes === undefined ? {} : { antes }) });
       if (!lida.ok) return lida;
+      fora += lida.dados.fora_por_cadastro_incompleto;
       for (const proposta of lida.dados.propostas) {
         // O filtro do CRM já pede `enviada`; a conferência aqui protege o prazo de quem não está nele.
         if (proposta.estagio !== "enviada" || proposta.data_envio === null) continue;
         const { estagio: _estagio, data_envio, ...resto } = proposta;
         enviadas.push({ ...resto, enviada_em: data_envio });
       }
-      antes = lida.dados.propostas.at(-1)?.id;
+      antes = lida.dados.ultimo_id ?? undefined;
       if (!lida.dados.mais || antes === undefined) {
         cortado = false;
         break;
@@ -400,11 +416,13 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
     }
     const valor: Propostas = {
       cortado,
+      foraPorCadastroIncompleto: fora,
       itens: enviadas.map((proposta) => ({ ...proposta, link: links.get(String(proposta.id)) ?? novos.get(String(proposta.id)) ?? null })),
     };
     return ok({
       itens: valor.itens.length,
       cortado,
+      foraPorCadastroIncompleto: fora,
       ...(limite === undefined ? {} : { limite }),
       gravar(lidoEm) {
         banco.db.transaction(() => {
@@ -419,9 +437,11 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
     const porId = new Map<number, ClienteDaCarteira>();
     let cursor: string | undefined;
     let cortado = true;
+    let fora = 0;
     for (let pagina = 0; pagina < PAGINAS_NO_MAXIMO; pagina += 1) {
       const lida = await leitor.ler("minha_carteira", { sem_atendimento_ha_dias: semAtendimentoHaDias, limite: POR_PAGINA, ...(cursor === undefined ? {} : { cursor }) });
       if (!lida.ok) return lida;
+      fora += lida.dados.fora_por_cadastro_incompleto;
       // Um cliente atendido entre duas páginas volta no fim da lista: fica a primeira vez.
       for (const cliente of lida.dados.clientes) if (!porId.has(cliente.id)) porId.set(cliente.id, cliente);
       cursor = lida.dados.proximo_cursor ?? undefined;
@@ -430,8 +450,8 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
         break;
       }
     }
-    const valor: Carteira = { semAtendimentoHaDias, cortado, itens: [...porId.values()] };
-    return ok({ itens: valor.itens.length, cortado, gravar: (lidoEm) => gravarCache(banco, "carteira", CHAVE_UNICA, valor, lidoEm) });
+    const valor: Carteira = { semAtendimentoHaDias, cortado, foraPorCadastroIncompleto: fora, itens: [...porId.values()] };
+    return ok({ itens: valor.itens.length, cortado, foraPorCadastroIncompleto: fora, gravar: (lidoEm) => gravarCache(banco, "carteira", CHAVE_UNICA, valor, lidoEm) });
   }
 
   /** O CRM não vai ser consultado por número: `motivo` diz por quê. */
@@ -441,19 +461,30 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
     readonly sinal: AbortSignal;
   }
 
+  /**
+   * Os candidatos de uma busca para decidir o vínculo. Candidato com cadastro incompleto ficou de fora
+   * da lista, e decidir sem ele daria `auto` ou `sem_cliente` sem prova: o contato espera o cadastro.
+   */
+  async function buscarCandidatos(leitor: LeitorDoCrm, q: string): Promise<Resultado<readonly ClienteDaBusca[]>> {
+    const lida = await leitor.ler("buscar_clientes", { q, limite: CANDIDATOS_NO_MAXIMO });
+    if (!lida.ok) return lida;
+    if (lida.dados.fora_por_cadastro_incompleto > 0) return falha("crm_resposta_inesperada", "A busca do CRM trouxe cliente com campo obrigatório vazio: o vínculo espera o cadastro ser corrigido no CRM.");
+    return ok(lida.dados.clientes);
+  }
+
   /** O vínculo de um número, com no máximo duas buscas ao CRM. Só os dígitos do telefone saem daqui. */
   async function consultar(telefone: Telefone, leitor: LeitorDoCrm): Promise<Resultado<VinculoDeContato>> {
-    const exata = await leitor.ler("buscar_clientes", { q: digitosDoTelefone(telefone), limite: CANDIDATOS_NO_MAXIMO });
+    const exata = await buscarCandidatos(leitor, digitosDoTelefone(telefone));
     if (!exata.ok) return exata;
     let variante: readonly ClienteDaBusca[] = [];
     const outra = varianteDoNove(telefone);
-    if (exata.dados.clientes.length === 0 && outra !== null) {
-      const lida = await leitor.ler("buscar_clientes", { q: digitosDoTelefone(outra), limite: CANDIDATOS_NO_MAXIMO });
+    if (exata.dados.length === 0 && outra !== null) {
+      const lida = await buscarCandidatos(leitor, digitosDoTelefone(outra));
       // Sem a resposta da variante o número não é `sem_cliente`: fica sem vínculo até a próxima rodada.
       if (!lida.ok) return lida;
-      variante = lida.dados.clientes;
+      variante = lida.dados;
     }
-    return ok(vinculoDe("whatsapp", telefone, decidirVinculo({ canal: "whatsapp", telefone }, exata.dados.clientes, variante), deps.agora()));
+    return ok(vinculoDe("whatsapp", telefone, decidirVinculo({ canal: "whatsapp", telefone }, exata.dados, variante), deps.agora()));
   }
 
   /** Um contato à espera de vínculo: a chave que o banco guarda e a consulta ao CRM que o decide. */
@@ -506,9 +537,9 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
 
   /** O vínculo de um endereço, com uma busca ao CRM. Só o endereço, em minúsculas, sai daqui. */
   async function consultarEndereco(endereco: EnderecoEmail, leitor: LeitorDoCrm): Promise<Resultado<VinculoDeContato>> {
-    const lida = await leitor.ler("buscar_clientes", { q: endereco, limite: CANDIDATOS_NO_MAXIMO });
+    const lida = await buscarCandidatos(leitor, endereco);
     if (!lida.ok) return lida;
-    return ok(vinculoDe("email", endereco, decidirVinculo({ canal: "email", endereco }, lida.dados.clientes), deps.agora()));
+    return ok(vinculoDe("email", endereco, decidirVinculo({ canal: "email", endereco }, lida.dados), deps.agora()));
   }
 
   /** O telefone de cada conversa direta, da mais recente para a mais antiga. Um `@lid` passa por `contacts resolve`; sem par, a conversa fica fora. */
@@ -821,6 +852,7 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
         itens: lido.dados.totalGravado?.() ?? lido.dados.itens,
         lidoEm,
         cortado: lido.dados.cortado,
+        ...(lido.dados.foraPorCadastroIncompleto === undefined ? {} : { foraPorCadastroIncompleto: lido.dados.foraPorCadastroIncompleto }),
         ...(lido.dados.semConsultaAoCrm === undefined ? {} : { semConsultaAoCrm: lido.dados.semConsultaAoCrm }),
       };
     }

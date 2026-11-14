@@ -199,6 +199,15 @@ describe("prova do telefone no vínculo", () => {
     expect(listarVinculos(bancada.banco, "whatsapp").get(`+${TEL.unico}`)).toMatchObject({ estado: "ambiguo", motivo: "sem_prova_do_telefone", candidatos: [{ id: 9201 }] });
   });
 
+  test("a busca traz um candidato com campo obrigatório vazio: o número não ganha vínculo sem ele e espera o cadastro", async () => {
+    const conectores = await ligado();
+    crm.dados.carteira.push(clienteFalso(9301, crm.dia(), { telefones: [TEL.unico], nome: null }));
+    const rodada = await conectores.sincronizar();
+    expect(daFonte(rodada)).toMatchObject({ situacao: "leu", cortado: true });
+    expect(estados()[`+${TEL.unico}`]).toBeUndefined();
+    expect(estados()[`+${TEL.doisClientes}`]).toBe("ambiguo");
+  });
+
   test("nome, e-mail e telefone dos contatos não chegam ao banco", async () => {
     const conectores = await ligado();
     trocarContatos(9202, [contato("41 3333-0001")]);

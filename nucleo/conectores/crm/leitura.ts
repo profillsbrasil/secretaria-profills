@@ -34,7 +34,8 @@ export type { AcessoAoCrm } from "./sessao";
  * Formato conferido contra o CRM em 14/11/2026 e na documentação do MCP: o MCP repassa a resposta do CRM crua,
  * salvo a proposta, que vem com os nomes da lista. Cada lista tem o nome que o CRM dá:
  * `compromissos`, `propostas`, `clientes` (carteira e busca) e `atendimentos`. Data e hora vêm em ISO com `-03:00`;
- * o dia, em `AAAA-MM-DD`. Uma resposta com outro nome ou com data ilegível vira `crm_resposta_inesperada`.
+ * o dia, em `AAAA-MM-DD`. Uma resposta com outro nome vira `crm_resposta_inesperada`. Numa lista, o item fora do
+ * formato (campo obrigatório vazio, data ilegível) fica de fora e entra só em `fora_por_cadastro_incompleto`.
  */
 
 export const id = z.number().int().min(1).max(2_147_483_647);
@@ -197,6 +198,46 @@ const atendimento = z
     }),
   );
 
+const comId = z.object({ id });
+
+/** Uma lista do CRM lida item a item. `ultimoId` é o id do último item que o CRM mandou, mesmo fora do formato. */
+interface ListaLida<I> {
+  readonly itens: I[];
+  readonly fora: number;
+  readonly ultimoId: number | null;
+}
+
+/**
+ * Cadastro antigo do CRM pode trazer um campo obrigatório vazio. Esse item fica de fora e só é
+ * contado: o texto dele não passou pelos sinais de injeção e não sai em erro nem em registro.
+ * Lista com itens e nenhum no formato é formato desconhecido, não cadastro incompleto.
+ */
+function listaDoCrm<T extends z.ZodType>(item: T) {
+  return z.array(z.unknown()).transform((crus, ctx): ListaLida<z.output<T>> => {
+    const itens: z.output<T>[] = [];
+    let ultimoId: number | null = null;
+    for (const cru of crus) {
+      const lido = item.safeParse(cru);
+      if (lido.success) itens.push(lido.data);
+      const doItem = comId.safeParse(cru);
+      if (doItem.success) ultimoId = doItem.data.id;
+    }
+    if (crus.length > 0 && itens.length === 0) {
+      ctx.addIssue({ code: "custom", message: "nenhum item no formato" });
+      return z.NEVER;
+    }
+    return { itens, fora: crus.length - itens.length, ultimoId };
+  });
+}
+
+/**
+ * `fora_por_cadastro_incompleto` conta os itens da página que ficaram de fora. `ultimo_id` é o `antes`
+ * da página seguinte: o item descartado no fim da página não volta na próxima.
+ */
+function contagemDa<I>(lista: ListaLida<I>): { readonly fora_por_cadastro_incompleto: number; readonly ultimo_id: number | null } {
+  return { fora_por_cadastro_incompleto: lista.fora, ultimo_id: lista.ultimoId };
+}
+
 const limite = z.number().int().min(1).max(50);
 const diaPedido = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
@@ -204,7 +245,9 @@ const diaPedido = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const FERRAMENTAS = {
   minha_agenda: {
     argumentos: z.strictObject({ de: diaPedido.optional(), ate: diaPedido.optional() }),
-    resposta: z.object({ compromissos: z.array(compromisso), mais: z.boolean() }),
+    resposta: z
+      .object({ compromissos: listaDoCrm(compromisso), mais: z.boolean() })
+      .transform(({ compromissos, ...resto }) => ({ ...resto, compromissos: compromissos.itens, ...contagemDa(compromissos) })),
   },
   listar_propostas: {
     argumentos: z.strictObject({
@@ -214,7 +257,9 @@ const FERRAMENTAS = {
       limite: limite.optional(),
       antes: id.optional(),
     }),
-    resposta: z.object({ propostas: z.array(propostaDaLista), mais: z.boolean() }),
+    resposta: z
+      .object({ propostas: listaDoCrm(propostaDaLista), mais: z.boolean() })
+      .transform(({ propostas, ...resto }) => ({ ...resto, propostas: propostas.itens, ...contagemDa(propostas) })),
   },
   ver_proposta: {
     argumentos: z.union([z.strictObject({ proposta_id: id }), z.strictObject({ codigo: z.string().min(1).max(20) })]),
@@ -228,11 +273,15 @@ const FERRAMENTAS = {
       cursor: z.string().min(1).max(21).optional(),
       limite: limite.optional(),
     }),
-    resposta: z.object({ clientes: z.array(clienteDaCarteira), mais: z.boolean(), proximo_cursor: z.string().nullish() }),
+    resposta: z
+      .object({ clientes: listaDoCrm(clienteDaCarteira), mais: z.boolean(), proximo_cursor: z.string().nullish() })
+      .transform(({ clientes, ...resto }) => ({ ...resto, clientes: clientes.itens, ...contagemDa(clientes) })),
   },
   buscar_clientes: {
     argumentos: z.strictObject({ q: z.string().min(1).max(200), limite: limite.optional() }),
-    resposta: z.object({ clientes: z.array(clienteBuscado), mais: z.boolean().nullish() }),
+    resposta: z
+      .object({ clientes: listaDoCrm(clienteBuscado), mais: z.boolean().nullish() })
+      .transform(({ clientes, ...resto }) => ({ ...resto, clientes: clientes.itens, ...contagemDa(clientes) })),
   },
   ver_cliente: {
     argumentos: z.strictObject({ cliente_id: id }),
@@ -240,7 +289,9 @@ const FERRAMENTAS = {
   },
   meus_atendimentos: {
     argumentos: z.strictObject({ status: z.enum(STATUS_DO_ATENDIMENTO).optional(), desde: diaPedido.optional(), antes: id.optional(), limite: limite.optional() }),
-    resposta: z.object({ atendimentos: z.array(atendimento), mais: z.boolean() }),
+    resposta: z
+      .object({ atendimentos: listaDoCrm(atendimento), mais: z.boolean() })
+      .transform(({ atendimentos, ...resto }) => ({ ...resto, atendimentos: atendimentos.itens, ...contagemDa(atendimentos) })),
   },
 } as const satisfies Record<string, { readonly argumentos: z.ZodType; readonly resposta: z.ZodType }>;
 

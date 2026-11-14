@@ -107,6 +107,8 @@ export interface LeituraDoCrm<T> {
   readonly lidoEm: Instante;
   readonly itens: readonly T[];
   readonly cortado: boolean;
+  /** Itens que o CRM mandou com campo obrigatório vazio e ficaram de fora de `itens`. */
+  readonly foraPorCadastroIncompleto: number;
 }
 
 export interface LeiturasDoCrm {
@@ -144,6 +146,8 @@ export interface BlocoDoCrm<I> {
   /** `null` quando há itens. */
   readonly motivo: MotivoDoBloco | null;
   readonly cortado: boolean;
+  /** Itens que o CRM mandou com campo obrigatório vazio: ficaram de fora, e o vendedor corrige o cadastro no CRM. */
+  readonly fora_por_cadastro_incompleto: number;
 }
 
 export interface PropostaAberta extends PropostaEnviada {
@@ -283,9 +287,9 @@ function motivoSemLeitura(crm: EstadoCrm): MotivoDoBloco {
 }
 
 function bloco<T, I>(leitura: LeituraDoCrm<T> | null, crm: EstadoCrm, converter: (item: T) => I): BlocoDoCrm<I> {
-  if (leitura === null) return { itens: [], lido_em: null, motivo: motivoSemLeitura(crm), cortado: false };
+  if (leitura === null) return { itens: [], lido_em: null, motivo: motivoSemLeitura(crm), cortado: false, fora_por_cadastro_incompleto: 0 };
   const itens = leitura.itens.map(converter);
-  return { itens, lido_em: leitura.lidoEm, motivo: itens.length === 0 ? "sem_itens" : null, cortado: leitura.cortado };
+  return { itens, lido_em: leitura.lidoEm, motivo: itens.length === 0 ? "sem_itens" : null, cortado: leitura.cortado, fora_por_cadastro_incompleto: leitura.foraPorCadastroIncompleto };
 }
 
 /** A leitura sem os itens ignorados. A lista que sobra vazia é `sem_itens`, como uma leitura vazia. */

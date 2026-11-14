@@ -33,7 +33,7 @@ function tarefa(id: string, estado: string, atualizadaEm: string): TarefaDoRelat
   return { id, titulo: `Ligar: CANARIO ${id}`, clienteNome: "CANARIO Cliente", origem: "agente", estado, atualizadaEm: atualizadaEm as Instante };
 }
 
-const lido = (itens: readonly Atendimento[], cortado = false): LeituraDeAtendimentos => ({ tipo: "lido", itens, cortado });
+const lido = (itens: readonly Atendimento[], cortado = false): LeituraDeAtendimentos => ({ tipo: "lido", itens, cortado, foraPorCadastroIncompleto: 0 });
 
 describe("segundaDaSemana", () => {
   test("segunda é ela mesma, quarta volta dois dias e domingo volta seis", () => {
@@ -185,7 +185,7 @@ describe("montarRelatorio: atendimentos", () => {
     const concluida = tarefa("t1", "concluida", "2026-11-10T14:05:00.000Z");
     for (const motivo of ["crm_desconectado", "crm_autorizando", "crm_app_nao_liberado", "crm_em_atencao"] as const) {
       const relatorio = montarRelatorio(PERIODO, { tipo: "sem_crm", motivo }, [concluida], AGORA);
-      expect(relatorio.atendimentos).toEqual({ motivo, erro: null, cortado: false, lido_em: null, dias: [] });
+      expect(relatorio.atendimentos).toEqual({ motivo, erro: null, cortado: false, fora_por_cadastro_incompleto: null, lido_em: null, dias: [] });
       expect(relatorio.contagens).toEqual({ atendimentos: null, por_status: null, clientes_atendidos: null, tarefas_concluidas: 1 });
       expect(relatorio.tarefas_concluidas).toHaveLength(1);
     }

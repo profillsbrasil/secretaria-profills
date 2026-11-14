@@ -1,7 +1,7 @@
 /**
  * Servidor de produção contra os três falsos, para conferir o onboarding clicando no navegador.
  *
- *   bun testes/manual/subir-com-falsos.ts [porta] [--pronto] [--vazio] [--sem-email] [--sem-whatsapp] [--fila]
+ *   bun testes/manual/subir-com-falsos.ts [porta] [--pronto] [--vazio] [--sem-email] [--sem-whatsapp] [--fila] [--cadastro-incompleto]
  *
  * Imprime a URL de entrada (vale uma vez, por um minuto) e os passos que fazem o papel do vendedor:
  * o celular que lê o QR é um arquivo na pasta do wacli falso, e o login no CRM falso é o cookie
@@ -31,6 +31,9 @@
  * em `falhou`); E contato que fica incerto, no 16004 (aprovado com a resposta do CRM perdida: `falhou_incerto`); F atendimento
  * no 16005 com o CRM sem conferir o cliente (cliente por conferir); G compromisso sem cliente, com início e fim. O link do
  * recibo não aparece aqui: o CRM falso fala `http`, e o painel só abre `https`.
+ * `--cadastro-incompleto` vale junto de `--pronto` e sem `--vazio`: o CRM falso ganha um compromisso de hoje sem título, uma
+ * proposta enviada com o cliente sem nome e um cliente da carteira sem nome. Depois de Sincronizar, cada bloco mostra os
+ * outros itens e a nota de quantos ficaram de fora.
  * `--vazio` tira tudo: sem tarefas, sem dados no CRM, sem conversas e sem conta de e-mail, para ver o Meu dia livre.
  */
 import { writeFileSync } from "node:fs";
@@ -42,7 +45,7 @@ import { iniciarServidor, lerArquivoDoServidor } from "../../nucleo/servidor";
 import { montarBancada } from "../falsos/bancada";
 import { gerarCertificado } from "../falsos/certificado";
 import { CANARIO, antes, cadastrarClientes, cenario, jid, movidasParaAgora, msg } from "../falsos/conversas";
-import { clienteFalso, iniciarCrmFalso } from "../falsos/crm";
+import { clienteFalso, iniciarCrmFalso, propostaFalsa } from "../falsos/crm";
 import { iniciarImapFalso, type MensagemDoFalso, type PastaDoFalso } from "../falsos/imap";
 import { chatDoWacli, type LeiturasDoWacliFalso } from "../falsos/wacli";
 
@@ -53,6 +56,8 @@ const semEmail = argumentos.includes("--sem-email") || vazio;
 const semWhatsapp = argumentos.includes("--sem-whatsapp");
 const fila = argumentos.includes("--fila");
 if (fila && (!pronto || vazio)) throw new Error("--fila vale junto de --pronto e sem --vazio.");
+const cadastroIncompleto = argumentos.includes("--cadastro-incompleto");
+if (cadastroIncompleto && (!pronto || vazio)) throw new Error("--cadastro-incompleto vale junto de --pronto e sem --vazio.");
 const porta = Number(argumentos.find((arg) => !arg.startsWith("--")) ?? 47920);
 const ENDERECO = "vendedor@empresa.test";
 const SENHA = "senha-de-teste";
@@ -315,6 +320,11 @@ async function deixarPronto(): Promise<void> {
       clienteFalso(9211, crm.dia(), { telefones: [TELEFONE_COM_ILEGIVEL] }),
       clienteFalso(9212, crm.dia(), { telefones: [TELEFONE_COM_MUITAS] }),
     );
+  }
+  if (cadastroIncompleto) {
+    crm.dados.compromissos.push({ id: 590, titulo: null, descricao: null, inicio: `${crm.dia()}T11:00:00-03:00`, fim: null, tipo: "client", cliente: null, via_app: null });
+    crm.dados.propostas.push({ ...propostaFalsa(7050, "enviada", crm.dia(-4)), cliente: { id: 9050, nome: null } });
+    crm.dados.carteira.push(clienteFalso(9399, null, { nome: null }));
   }
   if (!semEmail) cadastrarClientesDeEmail();
   const painel = await comoVendedor();

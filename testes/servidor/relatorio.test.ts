@@ -72,7 +72,7 @@ describe("GET /api/relatorio sem leitura do CRM", () => {
     const { status, corpo } = await relatorio(p);
     expect(status).toBe(200);
     const dados = corpo.ok ? corpo.dados : null;
-    expect(dados?.atendimentos).toEqual({ motivo: "crm_desconectado", erro: null, cortado: false, lido_em: null, dias: [] });
+    expect(dados?.atendimentos).toEqual({ motivo: "crm_desconectado", erro: null, cortado: false, fora_por_cadastro_incompleto: null, lido_em: null, dias: [] });
     expect(dados?.contagens).toEqual({ atendimentos: null, por_status: null, clientes_atendidos: null, tarefas_concluidas: 1 });
     expect(dados?.tarefas_concluidas.map((t) => [t.id, t.titulo, t.origem])).toEqual([[id, "Ligar", "agente"]]);
     expect(dados?.periodo.padrao).toBe(true);

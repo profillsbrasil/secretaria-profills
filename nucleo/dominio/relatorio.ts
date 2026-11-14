@@ -52,7 +52,7 @@ export function motivoDoPulo(crm: EstadoCrm): MotivoSemCrm | null {
 
 /** O que a leitura sob demanda dos atendimentos trouxe. `cortado`: o CRM tinha mais do que o limite de páginas deixou ler. */
 export type LeituraDeAtendimentos =
-  | { readonly tipo: "lido"; readonly itens: readonly Atendimento[]; readonly cortado: boolean }
+  | { readonly tipo: "lido"; readonly itens: readonly Atendimento[]; readonly cortado: boolean; readonly foraPorCadastroIncompleto: number }
   | { readonly tipo: "sem_crm"; readonly motivo: MotivoSemCrm }
   | { readonly tipo: "falhou"; readonly erro: ErroOperacao };
 
@@ -96,6 +96,11 @@ export interface Relatorio {
     readonly motivo: MotivoDoRelatorio | null;
     readonly erro: ErroOperacao | null;
     readonly cortado: boolean;
+    /**
+     * Atendimentos que o CRM mandou com campo obrigatório vazio, do início do período até hoje: ficaram fora
+     * dos dias e das contagens. `null` sem leitura, como as contagens.
+     */
+    readonly fora_por_cadastro_incompleto: number | null;
     readonly lido_em: Instante | null;
     readonly dias: readonly { readonly dia: Dia; readonly itens: readonly AtendimentoDoRelatorio[] }[];
   };
@@ -157,6 +162,7 @@ export function montarRelatorio(periodo: PeriodoDoRelatorio, leitura: LeituraDeA
         motivo: leitura.tipo === "sem_crm" ? leitura.motivo : "crm_falhou",
         erro: leitura.tipo === "falhou" ? paraOLeitor(leitura.erro, "agente") : null,
         cortado: false,
+        fora_por_cadastro_incompleto: null,
         lido_em: null,
         dias: [],
       },
@@ -167,7 +173,14 @@ export function montarRelatorio(periodo: PeriodoDoRelatorio, leitura: LeituraDeA
   const porStatus = Object.fromEntries(STATUS_DO_ATENDIMENTO.map((status) => [status, dentro.filter((a) => a.status === status).length])) as Record<StatusDoAtendimento, number>;
   return {
     ...comum,
-    atendimentos: { motivo: null, erro: null, cortado: leitura.cortado, lido_em: agora, dias: diasDosAtendimentos(dentro) },
+    atendimentos: {
+      motivo: null,
+      erro: null,
+      cortado: leitura.cortado,
+      fora_por_cadastro_incompleto: leitura.foraPorCadastroIncompleto,
+      lido_em: agora,
+      dias: diasDosAtendimentos(dentro),
+    },
     contagens: {
       atendimentos: dentro.length,
       por_status: porStatus,

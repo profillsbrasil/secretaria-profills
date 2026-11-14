@@ -130,18 +130,18 @@ describe("motivo do bloco vazio", () => {
   });
 
   test("leitura feita e lista vazia é sem_itens, com o lido_em", () => {
-    const blocos = montarBlocosDoCrm({ agenda: { dia: HOJE, itens: [], cortado: false, lidoEm: LIDO }, propostas: null, carteira: null }, CONECTADO, HOJE);
-    expect(blocos.compromissos_de_hoje).toEqual({ itens: [], lido_em: LIDO, motivo: "sem_itens", cortado: false });
+    const blocos = montarBlocosDoCrm({ agenda: { dia: HOJE, itens: [], cortado: false, foraPorCadastroIncompleto: 0, lidoEm: LIDO }, propostas: null, carteira: null }, CONECTADO, HOJE);
+    expect(blocos.compromissos_de_hoje).toEqual({ itens: [], lido_em: LIDO, motivo: "sem_itens", cortado: false, fora_por_cadastro_incompleto: 0 });
   });
 
   test("a agenda lida ontem não serve para hoje", () => {
     const ontem = somarAoDia(HOJE, -1);
-    const blocos = montarBlocosDoCrm({ agenda: { dia: ontem, itens: [], cortado: false, lidoEm: LIDO }, propostas: null, carteira: null }, CONECTADO, HOJE);
+    const blocos = montarBlocosDoCrm({ agenda: { dia: ontem, itens: [], cortado: false, foraPorCadastroIncompleto: 0, lidoEm: LIDO }, propostas: null, carteira: null }, CONECTADO, HOJE);
     expect(blocos.compromissos_de_hoje.motivo).toBe("sem_leitura");
   });
 
   test("leitura guardada aparece mesmo com o CRM desconectado depois, com o lido_em dela", () => {
-    const blocos = montarBlocosDoCrm({ agenda: null, propostas: { itens: [proposta(10)], cortado: true, lidoEm: LIDO }, carteira: null }, { fase: "desconectado" }, HOJE);
+    const blocos = montarBlocosDoCrm({ agenda: null, propostas: { itens: [proposta(10)], cortado: true, foraPorCadastroIncompleto: 0, lidoEm: LIDO }, carteira: null }, { fase: "desconectado" }, HOJE);
     expect(blocos.propostas_abertas).toMatchObject({ lido_em: LIDO, motivo: null, cortado: true });
     expect(blocos.propostas_abertas.itens.map((p) => p.faixa)).toEqual([7]);
   });

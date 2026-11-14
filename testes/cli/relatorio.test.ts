@@ -39,7 +39,7 @@ describe("relatorio pelo CLI com o servidor no ar e sem CRM", () => {
     expect(Object.keys(dados)).toEqual(["aviso", "periodo", "tarefas_concluidas", "atendimentos", "contagens"]);
     expect(dados.aviso).toBe(AVISO_DO_RELATORIO);
     expect(dados.periodo).toMatchObject({ padrao: true });
-    expect(dados.atendimentos).toEqual({ motivo: "crm_desconectado", erro: null, cortado: false, lido_em: null, dias: [] });
+    expect(dados.atendimentos).toEqual({ motivo: "crm_desconectado", erro: null, cortado: false, fora_por_cadastro_incompleto: null, lido_em: null, dias: [] });
     expect(dados.contagens).toEqual({ atendimentos: null, por_status: null, clientes_atendidos: null, tarefas_concluidas: 1 });
     expect(dados.tarefas_concluidas.map((t) => [t.id, t.titulo])).toEqual([[id, "Ligar"]]);
   });
@@ -126,7 +126,7 @@ describe("o texto do relatório", () => {
   test("CRM falhou: a ação do erro e a espera, e a frase da parte local", () => {
     const texto = descrever({
       ...base,
-      atendimentos: { motivo: "crm_falhou", erro: { codigo: "crm_limite_de_chamadas", mensagem: "m", acao: "Espere e chame de novo, uma vez só.", esperaS: 30 }, cortado: false, lido_em: null, dias: [] },
+      atendimentos: { motivo: "crm_falhou", erro: { codigo: "crm_limite_de_chamadas", mensagem: "m", acao: "Espere e chame de novo, uma vez só.", esperaS: 30 }, cortado: false, fora_por_cadastro_incompleto: null, lido_em: null, dias: [] },
       contagens: { ...base.contagens, atendimentos: null, por_status: null, clientes_atendidos: null },
     });
     expect(texto).toContain("Atendimentos no CRM: não li, Espere e chame de novo, uma vez só. Espere 30 s.");

@@ -303,7 +303,7 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
       try {
         const lido = await Promise.race([lerAtendimentos(crm.leitor(prazo), desde), estourou]);
         if (lido === "prazo") return { tipo: "falhou", erro: erroDe("crm_fora_do_ar") };
-        return "erro" in lido ? { tipo: "falhou", erro: lido.erro } : { tipo: "lido", itens: lido.itens, cortado: lido.cortado };
+        return "erro" in lido ? { tipo: "falhou", erro: lido.erro } : { tipo: "lido", itens: lido.itens, cortado: lido.cortado, foraPorCadastroIncompleto: lido.foraPorCadastroIncompleto };
       } catch (erro) {
         registro.erro("conectores.operacao_falhou", { operacao: "crm.atendimentos", erro: erro instanceof Error ? erro.name : typeof erro });
         return { tipo: "falhou", erro: erroDe("interno") };
