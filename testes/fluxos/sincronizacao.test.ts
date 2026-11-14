@@ -269,3 +269,32 @@ describe("conferir o cliente de uma tarefa", () => {
     expect(await conectores.conferirCliente(8002)).toEqual({ tipo: "nao_conferido", motivo: "crm_fora_do_ar" });
   });
 });
+
+describe("sincronização automática ao conectar", () => {
+  test("o registro que falha ao escrever não deixa promessa rejeitada sem tratamento: a falha vai para o registro de erro", async () => {
+    nova();
+    const erros: string[] = [];
+    const registro = {
+      info(evento: string) {
+        if (evento === "sincronizacao.automatica") throw new Error("disco cheio");
+      },
+      aviso() {},
+      erro(evento: string) {
+        erros.push(evento);
+      },
+    };
+    const rejeitadas: unknown[] = [];
+    const ouvir = (motivo: unknown) => rejeitadas.push(motivo);
+    process.on("unhandledRejection", ouvir);
+    try {
+      const conectores = bancada.ligar({ registro, sincronizacaoAutomatica: true });
+      await conectores.pronto;
+      await conectar(conectores);
+      for (let vez = 0; vez < 100 && rejeitadas.length === 0 && !erros.includes("sincronizacao.automatica_falhou"); vez += 1) await Bun.sleep(10);
+      expect(rejeitadas).toEqual([]);
+      expect(erros).toContain("sincronizacao.automatica_falhou");
+    } finally {
+      process.off("unhandledRejection", ouvir);
+    }
+  });
+});
