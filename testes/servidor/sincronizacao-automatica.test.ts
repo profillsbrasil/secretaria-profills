@@ -1,24 +1,45 @@
 import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+import { caminhosDosDados } from "../../nucleo/ambiente";
 import { LEITURA_VELHA_MS, type DecisaoAutomatica } from "../../nucleo/dominio";
 import type { MeuDia } from "../../nucleo/tarefas";
+import { gerarCertificado } from "../falsos/certificado";
 import { iniciarCrmFalso, type CrmFalso } from "../falsos/crm";
+import { iniciarImapFalso, type ImapFalso } from "../falsos/imap";
 import { FIM_DA_RODADA, conectarCrmNoPalco, subirPalco, type Palco } from "./palco";
 
 setDefaultTimeout(30_000);
 
 let palco: Palco | null = null;
 let crm: CrmFalso | null = null;
+let imap: ImapFalso | null = null;
 
 afterEach(async () => {
   await palco?.limpar();
   await crm?.parar();
+  await imap?.parar();
   palco = null;
   crm = null;
+  imap = null;
 });
 
 /** Janela de observação: uma rodada que fosse disparar teria este tempo para chamar o CRM. */
 const JANELA_MS = 300;
 const MINUTO = 60_000;
+const certificado = gerarCertificado();
+const ENDERECO = "vendedor@exemplo.test";
+const SENHA = `senha-${crypto.randomUUID()}`;
+
+/** Espera o registro do servidor trazer o evento. */
+async function registroTraz(p: Palco, evento: string): Promise<void> {
+  const arquivo = join(caminhosDosDados(p.bancada.ambiente).logs, "servidor.log");
+  for (let vez = 0; vez < 150; vez += 1) {
+    if (existsSync(arquivo) && readFileSync(arquivo, "utf8").includes(`"${evento}"`)) return;
+    await Bun.sleep(20);
+  }
+  throw new Error(`o registro não trouxe ${evento}`);
+}
 
 type Envelope<T> = { ok: true; dados: T } | { ok: false; erro: { codigo: string } };
 
@@ -32,7 +53,7 @@ async function subir(): Promise<{ p: Palco; crm: CrmFalso }> {
   let p: Palco | null = null;
   const falso = iniciarCrmFalso({ agora: () => Date.parse(p === null ? new Date().toISOString() : p.bancada.ambiente.agora()) });
   crm = falso;
-  p = await subirPalco({ crmRecurso: falso.recurso, crmClientId: falso.clientId });
+  p = await subirPalco({ crmRecurso: falso.recurso, crmClientId: falso.clientId, caExtra: certificado.certificado });
   palco = p;
   return { p, crm: falso };
 }
@@ -102,6 +123,32 @@ describe("a Secretária sincroniza sozinha só nos dois momentos do vendedor", (
     await dados(p.agente("/api/estado"));
     await Bun.sleep(JANELA_MS);
     expect(ferramentas(falso)).toEqual([]);
+  });
+
+  test("conectar no meio de uma rodada: a rodada em voo termina, e outra roda depois dela", async () => {
+    const { p, crm: falso } = await subir();
+    await conectarCrmNoPalco(p, falso);
+    const caixa = (imap = await iniciarImapFalso({ seguranca: "tls", certificado, contas: { [ENDERECO]: SENHA }, caixas: { [ENDERECO]: [{ caminho: "INBOX", uidValidity: 1, mensagens: [] }] } }));
+    const eventos = await p.eventosDoPainel();
+    let soltar: () => void = () => {};
+    falso.botoes.segurar = new Promise<void>((resolver) => (soltar = resolver));
+    const chegou = new Promise<string>((resolver) => (falso.botoes.aoChamar = resolver));
+    const emVoo = dados<{ jaEmAndamento: boolean }>(p.agente("/api/sincronizar", { method: "POST" }));
+    expect(await chegou).toBe("minha_agenda");
+
+    const conta = { rotulo: "Profills", provedor: "outro", endereco: ENDERECO, servidor: "127.0.0.1", porta: caixa.porta, seguranca: "tls", senha: SENHA, janelaDias: 30 };
+    await dados(p.painel("/api/email/contas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(conta) }));
+    await eventos.ate((e) => e.email.contas.some((c) => c.estado.fase === "conectado"), "conta conectada");
+    await registroTraz(p, "sincronizacao.automatica");
+    falso.botoes.aoChamar = null;
+    falso.botoes.segurar = null;
+    soltar();
+
+    expect((await emVoo).jaEmAndamento).toBe(false);
+    await eventos.ateTexto(FIM_DA_RODADA, "o fim da rodada em voo e o da rodada de depois", 2);
+    expect(ferramentas(falso).filter((nome) => nome === "minha_agenda")).toHaveLength(2);
+    await Bun.sleep(JANELA_MS);
+    expect(eventos.vezes(FIM_DA_RODADA)).toBe(2);
   });
 
   test("a rodada de conectar que bate no limite do CRM não se repete: abrir o painel respeita a espera", async () => {

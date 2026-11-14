@@ -257,7 +257,10 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
   function disparar(decisao: DecisaoAutomatica): void {
     if (!decisao.dispara || parando !== null) return;
     registro.info("sincronizacao.automatica", decisao.motivo === "conectou" ? { motivo: decisao.motivo, conector: decisao.conector } : { motivo: decisao.motivo, fonte: decisao.fonte });
-    void sincronizar().catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
+    const rodada = sincronizar();
+    // A rodada em voo começou antes desta conexão e pode ter pulado a fonte dela: roda mais uma, depois dela.
+    const feita = decisao.motivo === "conectou" ? rodada.then((lida) => (lida.jaEmAndamento ? sincronizar() : lida)) : rodada;
+    void feita.catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
   }
 
   let retratoAnterior = estado();
