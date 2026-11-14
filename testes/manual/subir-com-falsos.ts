@@ -1,7 +1,7 @@
 /**
  * Servidor de produção contra os três falsos, para conferir o onboarding clicando no navegador.
  *
- *   bun testes/manual/subir-com-falsos.ts [porta] [--pronto] [--vazio] [--sem-email] [--sem-whatsapp] [--fila] [--cadastro-incompleto]
+ *   bun testes/manual/subir-com-falsos.ts [porta] [--pronto] [--leitura-velha] [--vazio] [--sem-email] [--sem-whatsapp] [--fila] [--cadastro-incompleto]
  *
  * Imprime a URL de entrada (vale uma vez, por um minuto) e os passos que fazem o papel do vendedor:
  * o celular que lê o QR é um arquivo na pasta do wacli falso, e o login no CRM falso é o cookie
@@ -9,8 +9,10 @@
  *
  * `--pronto` faz esses passos sozinho, pelas mesmas rotas que o painel usa: conecta o WhatsApp, o
  * CRM e as duas contas de e-mail (Profills e Pessoal) e cria tarefas atrasada, de hoje e sem data,
- * para conferir o Meu dia. O CRM, as conversas e os e-mails ficam sem leitura até alguém clicar em
- * Sincronizar. `--sem-email` não conecta conta nenhuma, e o Meu dia fica como era antes do e-mail.
+ * para conferir o Meu dia. Cada conexão dispara uma sincronização, como no painel, e o Meu dia já abre lido.
+ * `--leitura-velha` vale junto de `--pronto`: depois das rodadas de conectar, reinicia o servidor com o relógio
+ * 31 minutos à frente. O reinício não sincroniza, e o painel, ao abrir, sincroniza sozinho, com Sincronizando no rodapé.
+ * `--sem-email` não conecta conta nenhuma, e o Meu dia fica como era antes do e-mail.
  * `--sem-whatsapp` pula o pareamento do WhatsApp e deixa o resto igual, para ver o e-mail sozinho.
  *
  * As conversas do WhatsApp vêm de `testes/falsos/conversas.ts`, movidas para o relógio de agora: uma
@@ -55,9 +57,11 @@ const vazio = argumentos.includes("--vazio");
 const semEmail = argumentos.includes("--sem-email") || vazio;
 const semWhatsapp = argumentos.includes("--sem-whatsapp");
 const fila = argumentos.includes("--fila");
+const leituraVelha = argumentos.includes("--leitura-velha");
 if (fila && (!pronto || vazio)) throw new Error("--fila vale junto de --pronto e sem --vazio.");
 const cadastroIncompleto = argumentos.includes("--cadastro-incompleto");
 if (cadastroIncompleto && (!pronto || vazio)) throw new Error("--cadastro-incompleto vale junto de --pronto e sem --vazio.");
+if (leituraVelha && !pronto) throw new Error("--leitura-velha vale junto de --pronto.");
 const porta = Number(argumentos.find((arg) => !arg.startsWith("--")) ?? 47920);
 const ENDERECO = "vendedor@empresa.test";
 const SENHA = "senha-de-teste";
@@ -198,8 +202,8 @@ bancada.roteiro({
   leituras: vazio ? {} : conversasDeMentira(),
 });
 
-const servidor = await iniciarServidor(bancada.ambiente);
-const arquivo = lerArquivoDoServidor(caminhosDosDados(bancada.ambiente).servidor);
+let servidor = await iniciarServidor(bancada.ambiente);
+let arquivo = lerArquivoDoServidor(caminhosDosDados(bancada.ambiente).servidor);
 
 const doAgente = (caminho: string, init: RequestInit = {}) =>
   fetch(`${servidor.origem}${caminho}`, { redirect: "manual", ...init, headers: { Authorization: `Bearer ${arquivo?.token}`, ...Object.fromEntries(new Headers(init.headers)) } });
@@ -370,13 +374,22 @@ async function deixarPronto(): Promise<void> {
 }
 
 if (pronto) await deixarPronto();
+if (leituraVelha) {
+  // O pedido do agente cai na rodada em voo ou lê tudo agora. Parar espera a rodada em voo e recusa a seguinte:
+  // nada sincroniza depois do avanço do relógio antes de o painel abrir.
+  await doAgente("/api/sincronizar", { method: "POST" });
+  await servidor.parar();
+  bancada.avancar(31 * 60_000);
+  servidor = await iniciarServidor(bancada.ambiente);
+  arquivo = lerArquivoDoServidor(caminhosDosDados(bancada.ambiente).servidor);
+}
 
 console.log(
   [
     `Painel: ${await bilhete()}`,
     ...(pronto
       ? [
-          `${semWhatsapp ? "CRM" : "WhatsApp, CRM"}${semEmail ? "" : " e as contas Profills e Pessoal"} conectados${vazio ? ", sem nenhum dado" : ", tarefas, conversas e e-mails de mentira prontos"}${fila ? ", e sete cartões esperando no bloco Aprovar (A a G)" : ""}.${semWhatsapp ? " O WhatsApp ficou desconectado." : ""}${semEmail ? " Sem conta de e-mail." : ""} Clique em Sincronizar no Meu dia para ler tudo.`,
+          `${semWhatsapp ? "CRM" : "WhatsApp, CRM"}${semEmail ? "" : " e as contas Profills e Pessoal"} conectados${vazio ? ", sem nenhum dado" : ", tarefas, conversas e e-mails de mentira prontos"}${fila ? ", e sete cartões esperando no bloco Aprovar (A a G)" : ""}.${semWhatsapp ? " O WhatsApp ficou desconectado." : ""}${semEmail ? " Sem conta de e-mail." : ""} ${leituraVelha ? "A leitura tem 31 minutos: o painel, ao abrir, sincroniza sozinho." : "Cada conexão já sincronizou; Sincronizar no Meu dia lê tudo de novo."}`,
         ]
       : [
           `Celular leu o QR:      touch ${join(bancada.dirFalso, "leu")}`,
