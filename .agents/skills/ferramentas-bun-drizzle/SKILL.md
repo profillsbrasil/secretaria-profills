@@ -20,9 +20,11 @@ Bun 1.4.4, fixado em `package.json` (`packageManager` e `engines`). Os scripts d
 | Conferir tipos | `bun run tipos` |
 | Auditar o índice do Git antes de publicar | `bun run auditar` |
 | Usar a Secretária | `bun secretaria <comando> --json` (lista em `AGENTS.md`) |
+| Adicionar ou ver componente do painel | `bunx --bun shadcn <comando>`, com o CLI fixado no `package.json` (skill `shadcn`) |
 
 - Pacote novo: `bun add <pacote>@<versão exata>`. Confira licença e procedência antes. Commit leva `package.json` e `bun.lock` juntos.
-- Nunca `npm install` nem `npx` para dependência do repo. Para rodar uma ferramenta do repo, `bunx <ferramenta>`.
+- Nunca `npm install` nem `npx` para dependência do repo. Para rodar uma ferramenta do repo, `bunx <ferramenta>`, sem `@latest` nem versão no comando: a versão é a do `package.json`.
+- Depois de `bunx --bun shadcn add`, troque `import { cn } from "cn"` por `@/lib/utils` e tire o pacote `cn` com `bun remove cn`. `git diff package.json` tem de vir sem pacote novo além das dependências do componente.
 - Processo externo só por `nucleo/processos`. `bun:sqlite` só em `nucleo/banco`. `Bun.secrets` só em `nucleo/cofre`. `testes/conferencias/fronteiras.test.ts` reprova o resto.
 
 ## Drizzle

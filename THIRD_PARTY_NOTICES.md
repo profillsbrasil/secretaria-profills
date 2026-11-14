@@ -4,7 +4,7 @@ Este repo copia duas skills de terceiros para `.agents/skills/`, e o instalador 
 
 | Skill | Upstream | Alteração local |
 |---|---|---|
-| `shadcn` | https://github.com/shadcn-ui/ui | sem a linha `allowed-tools` do frontmatter e sem o bloco que rodava `npx shadcn@latest info --json` ao carregar (motivo em `docs/arquitetura.md`, seção "Instalação") |
+| `shadcn` | https://github.com/shadcn-ui/ui | sem a linha `allowed-tools` do frontmatter e sem o bloco que rodava `npx shadcn@latest info --json` ao carregar; no `SKILL.md`, a nota do topo e os exemplos usam `bunx --bun shadcn`, o CLI fixado no `package.json`, no lugar de `npx shadcn@latest` (motivo em `docs/arquitetura.md`, seção "Instalação") |
 | `wacli` | https://github.com/openclaw/wacli | nenhuma |
 
 ## shadcn-ui/ui

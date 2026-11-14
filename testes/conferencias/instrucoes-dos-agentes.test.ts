@@ -37,4 +37,23 @@ describe("instruções aos agentes", () => {
     const comAllowedTools = daProfills.filter((nome) => /^allowed-tools\s*:/m.test(frontmatter(readFileSync(join(SKILLS, nome, "SKILL.md"), "utf8"))));
     expect(comAllowedTools).toEqual([]);
   });
+
+  test("o CLI do shadcn vem travado no package.json", () => {
+    const pacote = JSON.parse(readFileSync(join(REPO, "package.json"), "utf8")) as { devDependencies?: Record<string, string> };
+    expect(pacote.devDependencies?.shadcn).toMatch(/^\d+\.\d+\.\d+$/);
+  });
+
+  test("nenhuma SKILL.md de .agents/skills manda baixar o shadcn@latest", () => {
+    const comLatest = readdirSync(SKILLS).filter((nome) => readFileSync(join(SKILLS, nome, "SKILL.md"), "utf8").includes("shadcn@latest"));
+    expect(comLatest).toEqual([]);
+  });
+
+  // O registro do shadcn entrega componentes com `import { cn } from "cn"`, e o pacote `cn` chega
+  // ao node_modules pelo próprio CLI: o import compila sem aviso. O painel usa o `cn` de @/lib/utils.
+  test("nenhum arquivo do painel importa o pacote cn", () => {
+    const comPacoteCn = [...new Bun.Glob("**/*.{ts,tsx}").scanSync(join(REPO, "nucleo", "painel"))].filter((arquivo) =>
+      /from\s+["']cn(\/[^"']*)?["']/.test(readFileSync(join(REPO, "nucleo", "painel", arquivo), "utf8")),
+    );
+    expect(comPacoteCn).toEqual([]);
+  });
 });
