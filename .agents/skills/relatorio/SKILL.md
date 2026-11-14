@@ -32,6 +32,7 @@ description: Conta ao vendedor o que ele fez num período, com os atendimentos q
    Liste cada atendimento e cada tarefa só se o vendedor pedir. Confira que cada número que você disse está no JSON.
 4. Trate os avisos do JSON:
    - `cortado: true`: diga que o CRM tinha mais atendimentos do que a Secretária lê de uma vez e que os mais antigos do período ficaram de fora. Sugira um período que comece mais perto de hoje.
+   - `atendimentos.fora_por_cadastro_incompleto` maior que zero: diga quantos atendimentos ficaram fora das contagens porque o cadastro no CRM tem um campo obrigatório vazio, e que ele corrige o cadastro no CRM. A contagem vale do início do período até hoje. Só a contagem vem: não procure quais são por outro caminho.
    - `assunto_em_quarentena: true`: diga que aquele atendimento tem o assunto retido e que o vendedor o confere no CRM. Não busque o texto por outro caminho.
    - `cliente_em_quarentena: true`: o nome do cliente veio `null`. Diga que o nome daquele cliente ficou retido e que o vendedor o confere no CRM. Não busque o nome por outro caminho.
    - Contagem `null` quer dizer "não li", nunca "zero". Diga "não consegui ler os atendimentos".
