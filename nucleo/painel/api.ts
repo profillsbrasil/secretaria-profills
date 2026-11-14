@@ -15,6 +15,7 @@
  * | GET    | /api/tarefas/:id            |                                     | `Saida<RespostaDaTarefa>`                  |
  * | POST   | /api/tarefas/:id/:acao      | `CorpoDaAcaoDaTarefa[acao]`         | `Saida<RespostaDaTarefa>`                  |
  * | POST   | /api/sincronizar            | nenhum                              | `Saida<Sincronizacao>`, no fim da rodada   |
+ * | POST   | /api/painel/aberto          | nenhum                              | `Saida<DecisaoAutomatica>`, sem esperar a rodada |
  * | POST   | /api/meu-dia/tarefas        | `{ tipo, id, tarefaId }`; conversa leva `canal` | `Saida<RespostaDaTarefa>`, vencendo hoje |
  * | POST   | /api/ignorados              | `{ tipo, id }`; conversa leva `canal` | `Saida<ItemIgnorado>`                    |
  * | POST   | /api/ignorados/desfazer     | `{ tipo, id }`; conversa leva `canal` | `Saida<{ tipo, id, desfeito }>`          |
@@ -39,6 +40,7 @@ import {
   ERROS,
   type Acao,
   type ConfigEmail,
+  type DecisaoAutomatica,
   type EntradaConectar,
   type ErroOperacao,
   type EstadoPorConector,
@@ -206,6 +208,8 @@ export interface ApiDeTarefas {
   criarDoMeuDia(alvo: AlvoDoDia, tarefaId: string): Promise<Resposta<RespostaDaTarefa>>;
   agir(id: string, pedido: PedidoDaTarefa): Promise<Resposta<RespostaDaTarefa>>;
   sincronizar(): Promise<Resposta<Sincronizacao>>;
+  /** O painel abriu: o servidor sincroniza se a leitura mais velha passou de 30 minutos. O andamento chega pelo SSE. */
+  painelAberto(): Promise<Resposta<DecisaoAutomatica>>;
   ignorar(alvo: AlvoDoDia): Promise<Resposta<ItemIgnorado>>;
   desfazerIgnorado(alvo: AlvoDoDia): Promise<Resposta<{ readonly desfeito: boolean }>>;
   /** Só o painel escolhe. A chave é o telefone da conversa (E.164 com `+`) ou o endereço do remetente. */
@@ -255,6 +259,7 @@ export function criarApiDeTarefas(buscar: Buscar = (url, init) => fetch(url, ini
     criarDoMeuDia: (alvo, tarefaId) => pedir(buscar, "/api/meu-dia/tarefas", { ...corpoDoAlvo(alvo), tarefaId }),
     agir: (id, pedido) => pedir(buscar, `${rotaDaTarefa(id)}/${pedido.acao}`, pedido.corpo),
     sincronizar: () => pedir(buscar, "/api/sincronizar", undefined, "POST"),
+    painelAberto: () => pedir(buscar, "/api/painel/aberto", undefined, "POST"),
     ignorar: (alvo) => pedir(buscar, "/api/ignorados", corpoDoAlvo(alvo)),
     desfazerIgnorado: (alvo) => pedir(buscar, "/api/ignorados/desfazer", corpoDoAlvo(alvo)),
     escolherCliente: ({ canal, chave }, escolha) => pedir(buscar, "/api/vinculos/escolher", { canal, chave, ...escolha }),

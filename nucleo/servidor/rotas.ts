@@ -958,6 +958,15 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
       },
     },
     {
+      // Só a sessão do painel: o CLI do agente não abre o painel, então não dispara a rodada automática.
+      metodo: "POST",
+      caminho: "/api/painel/aberto",
+      quem: ["painel"],
+      async tratar({ chamador }) {
+        return respostaJson(ok(await conectores.sincronizarAoAbrirOPainel()), chamador);
+      },
+    },
+    {
       metodo: "POST",
       caminho: "/api/whatsapp/ler",
       quem: ["agente"],

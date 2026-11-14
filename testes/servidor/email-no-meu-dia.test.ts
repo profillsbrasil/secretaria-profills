@@ -10,7 +10,7 @@ import { gerarCertificado } from "../falsos/certificado";
 import { ALVO, TEL, cadastrarClientes, cenario, jid } from "../falsos/conversas";
 import { clienteFalso, iniciarCrmFalso, type CrmFalso } from "../falsos/crm";
 import { iniciarImapFalso, type ImapFalso, type MensagemDoFalso } from "../falsos/imap";
-import { conectarWhatsappNoPalco, subirPalco, type Eventos, type Palco } from "./palco";
+import { FIM_DA_RODADA, conectarWhatsappNoPalco, subirPalco, type Eventos, type Palco } from "./palco";
 
 // Sobe servidor, CRM falso, IMAP falso e processos do CLI; num runner lento de CI os 5 s padrão não bastam.
 setDefaultTimeout(60_000);
@@ -145,6 +145,8 @@ async function subir(extra: { whatsapp?: boolean; semConta?: boolean } = {}): Pr
   if (destino === null) throw new Error("o painel não abriu o login do CRM");
   await p.cru(`/oauth/crm/retorno?${await falso.autorizar(destino)}`, { headers: { "Sec-Fetch-Site": "cross-site" } });
   await doPainel.ate((e) => e.conectores.crm.estado.fase === "conectado", "CRM conectado");
+  // Cada conexão dispara uma rodada: o cenário começa depois de todas, para a sincronização do teste não cair dentro de uma delas.
+  await doPainel.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando o CRM conectou");
   if (extra.whatsapp === true) await conectarWhatsappNoPalco(p, cenario());
 
   const servidor = (imap = await iniciarImapFalso({
@@ -161,9 +163,11 @@ async function subir(extra: { whatsapp?: boolean; semConta?: boolean } = {}): Pr
   let contaId = "";
   if (extra.semConta !== true) {
     const corpo = { rotulo: "Profills", provedor: "outro", endereco: PROFILLS, servidor: "127.0.0.1", porta: servidor.porta, seguranca: "tls", senha: SENHA, janelaDias: 90 };
+    const rodadas = doPainel.vezes(FIM_DA_RODADA);
     const criada = await dados<{ id: string }>(p.painel("/api/email/contas", comCorpo(corpo)));
     contaId = criada.id;
     await doPainel.ate((e) => e.email.contas.length === 1 && e.email.contas.every((c) => c.estado.fase === "conectado"), "conta conectada");
+    await doPainel.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando a conta conectou", rodadas + 1);
   }
   return {
     p,
@@ -316,10 +320,8 @@ describe("e-mail nos blocos do Meu dia", () => {
     expect(dia.nao_clientes).toEqual([]);
   });
 
-  test("o campo email do bloco: sem_leitura antes de sincronizar, sem_itens depois, e cortado com o teto de 30 consultas", async () => {
+  test("o campo email do bloco: sem_itens depois da rodada de quando a conta conectou, e cortado com o teto de 30 consultas", async () => {
     const c = await subir();
-    expect((await meuDia(c.p)).responder.email).toEqual({ lido_em: null, motivo: "sem_leitura", cortado: true, contas_lidas: 0, contas: 1, contas_sem_enviados: [] });
-    await sincronizar(c.p);
     expect((await meuDia(c.p)).responder.email).toMatchObject({ motivo: "sem_itens", cortado: false, contas_lidas: 1, contas: 1 });
 
     for (let uid = 1; uid <= 31; uid += 1) {

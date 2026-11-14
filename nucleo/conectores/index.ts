@@ -1,7 +1,8 @@
 import type { Ambiente } from "../ambiente";
-import type { BancoAberto } from "../banco";
+import { lidoEmDasContas, type BancoAberto } from "../banco";
 import type { Cofre, Segredo } from "../cofre";
 import {
+  decidirSincronizacaoAutomatica,
   falha,
   lerIdContaEmail,
   motivoDoPulo,
@@ -10,7 +11,10 @@ import {
   type Dia,
   type ContaEmailComEstado,
   type CorpoLido,
+  type DecisaoAutomatica,
   type ErroOperacao,
+  type GatilhoAutomatico,
+  type Instante,
   type EstadoCrm,
   type EstadoDoEmail,
   type EstadoPorConector,
@@ -34,7 +38,7 @@ import { lerAtendimentos } from "./atendimentos";
 import { criarCascaCrm } from "./crm/casca";
 import type { Dependencias } from "./dependencias";
 import { criarContasDeEmail } from "./email/contas";
-import { criarSincronizador, type AndamentoDaSincronizacao, type OpcoesDaSincronizacao, type Sincronizacao } from "./sincronizacao";
+import { criarSincronizador, esperaPedidaNaRodada, type AndamentoDaSincronizacao, type OpcoesDaSincronizacao, type Sincronizacao } from "./sincronizacao";
 import { temporizadorPadrao, type Temporizador } from "./motor";
 import { criarCascaWhatsapp, type OpcoesDasConversas } from "./whatsapp/casca";
 
@@ -109,6 +113,11 @@ export interface Conectores {
   tokenValidoDoCrm(): Promise<Segredo | null>;
   /** Lê o CRM agora e guarda no cache. Uma rodada por vez: o pedido no meio de uma rodada recebe o resultado dela. */
   sincronizar(opcoes?: OpcoesDaSincronizacao): Promise<Sincronizacao>;
+  /**
+   * O vendedor abriu o painel. Depois da reconciliação de boot, sincroniza se `decidirSincronizacaoAutomatica`
+   * mandar e devolve a decisão sem esperar a rodada. A rodada que o conector dispara ao conectar sai daqui de dentro, sem chamada.
+   */
+  sincronizarAoAbrirOPainel(): Promise<DecisaoAutomatica>;
   /** O que a última sincronização guardou. Não chama o CRM. */
   leiturasDoCrm(): LeiturasDoCrm;
   /** A última leitura das conversas do WhatsApp. Não chama o wacli nem o CRM. `null` sem leitura. */
@@ -221,10 +230,43 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
     },
   });
   const motores = () => [whatsapp.motor, crm.motor, ...email.motores()];
+  const pronto = Promise.all([whatsapp.reconciliar(), crm.reconciliar(), email.reconciliar()]).then(() => {});
 
   function estado(): RetratoDosConectores {
     return { whatsapp: whatsapp.motor.estado(), crm: crm.motor.estado(), email: email.estado() };
   }
+
+  /** Só em memória: depois de um reinício, a primeira abertura do painel decide pelo `lido_em` das fontes. */
+  let ultimaRodada: { readonly iniciadaEm: Instante; readonly esperarAte: Instante | null } | null = null;
+
+  function sincronizar(opcoes?: OpcoesDaSincronizacao): Promise<Sincronizacao> {
+    const rodada = sincronizador.sincronizar(opcoes);
+    void rodada.then(
+      (feita) => {
+        ultimaRodada = { iniciadaEm: feita.iniciadaEm, esperarAte: esperaPedidaNaRodada(feita) };
+      },
+      () => {},
+    );
+    return rodada;
+  }
+
+  function decidir(gatilho: GatilhoAutomatico): DecisaoAutomatica {
+    return decidirSincronizacaoAutomatica({ gatilho, agora: ambiente.agora(), ultimaRodadaEm: ultimaRodada?.iniciadaEm ?? null, esperarAte: ultimaRodada?.esperarAte ?? null });
+  }
+
+  function disparar(decisao: DecisaoAutomatica): void {
+    if (!decisao.dispara || parando !== null) return;
+    registro.info("sincronizacao.automatica", decisao.motivo === "conectou" ? { motivo: decisao.motivo, conector: decisao.conector } : { motivo: decisao.motivo, fonte: decisao.fonte });
+    void sincronizar().catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
+  }
+
+  let retratoAnterior = estado();
+  ouvintes.add((depois) => {
+    const decisao = decidir({ tipo: "conectores_mudaram", antes: retratoAnterior, depois });
+    retratoAnterior = depois;
+    // A senha da conta de e-mail e o espelho do WhatsApp entram nos efeitos, depois da fase: a rodada espera os efeitos assentarem.
+    if (decisao.dispara) void Promise.all(motores().map((motor) => motor.assentar())).then(() => disparar(decisao));
+  });
 
   const comUrl = <E>(resultado: Resultado<E>) => (resultado.ok ? ok({ estado: resultado.dados, urlAutorizacao: null }) : resultado);
   const acoes: { readonly [C in IdConectorUnico]: (acao: Acao, dados: unknown) => Promise<Resultado<RespostaDaAcao<C>>> } = {
@@ -245,7 +287,7 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
   }
 
   return {
-    pronto: Promise.all([whatsapp.reconciliar(), crm.reconciliar(), email.reconciliar()]).then(() => {}),
+    pronto,
     estado,
     agir: (id, acao, dados) => seguro(`${id}.${acao}`, () => acoes[id](acao, dados)),
     email: {
@@ -268,7 +310,24 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
       const token = await seguro("crm.token", async () => ok(await crm.tokenValido()));
       return token.ok ? token.dados : null;
     },
-    sincronizar: (opcoes) => sincronizador.sincronizar(opcoes),
+    sincronizar,
+    async sincronizarAoAbrirOPainel() {
+      await pronto;
+      const { agenda, propostas, carteira } = sincronizador.leituras();
+      const decisao = decidir({
+        tipo: "painel_aberto",
+        conectores: estado(),
+        lidoEm: {
+          agenda: agenda?.lidoEm ?? null,
+          propostas: propostas?.lidoEm ?? null,
+          carteira: carteira?.lidoEm ?? null,
+          conversas: sincronizador.conversas()?.lidoEm ?? null,
+          email: lidoEmDasContas(banco),
+        },
+      });
+      disparar(decisao);
+      return decisao;
+    },
     leiturasDoCrm: () => sincronizador.leituras(),
     leituraDeConversas: () => sincronizador.conversas(),
     assinarSincronizacao(ouvinte) {

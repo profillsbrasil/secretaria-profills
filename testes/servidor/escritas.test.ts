@@ -4,7 +4,7 @@ import { escolherParaAprovar, hashDaEscrita, novoCartao, type CartaoDaEscrita, t
 import type { MeuDia } from "../../nucleo/tarefas";
 import { ALVO, TEL, cadastrarClientes, cenario } from "../falsos/conversas";
 import { clienteFalso, iniciarCrmFalso, type CrmFalso } from "../falsos/crm";
-import { conectarWhatsappNoPalco, subirPalco, type Palco } from "./palco";
+import { conectarCrmNoPalco, conectarWhatsappNoPalco, subirPalco, type Palco } from "./palco";
 import type { Server } from "bun";
 import { caminhosDosDados } from "../../nucleo/ambiente";
 import { abrirBanco, inserirCartao, lerCartao, mudarCartaoEmSequencia } from "../../nucleo/banco";
@@ -81,13 +81,7 @@ async function subir(): Promise<Montado> {
   return { p, crm: falso };
 }
 
-async function conectarCrm({ p, crm: falso }: Montado): Promise<void> {
-  const eventos = await p.eventosDoPainel();
-  const destino = (await p.painel("/oauth/crm/iniciar")).headers.get("location");
-  if (destino === null) throw new Error("o painel não abriu o login do CRM");
-  await p.cru(`/oauth/crm/retorno?${await falso.autorizar(destino)}`, { headers: { "Sec-Fetch-Site": "cross-site" } });
-  await eventos.ate((e: EstadoPainel) => e.conectores.crm.estado.fase === "conectado", "CRM conectado");
-}
+const conectarCrm = ({ p, crm: falso }: Montado): Promise<void> => conectarCrmNoPalco(p, falso);
 
 async function subirConectado(): Promise<Montado> {
   const montado = await subir();

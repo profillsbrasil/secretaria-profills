@@ -13,6 +13,7 @@ import {
   motivoDoPulo,
   diaEm,
   falha,
+  instante,
   ok,
   paraOLeitor,
   conversasDeEmail,
@@ -58,8 +59,8 @@ import type { Registro } from "../registro";
 import type { LeitorDoCrm } from "./crm/leitura";
 
 /**
- * Sincronização sob demanda: só `POST /api/sincronizar` e `bun secretaria sincronizar` a disparam.
- * Nenhum temporizador. Uma por vez: quem pede durante uma rodada recebe a mesma rodada, salvo
+ * A rodada sai de `POST /api/sincronizar`, de `bun secretaria sincronizar` e dos dois gatilhos do
+ * vendedor que `decidirSincronizacaoAutomatica` decide. Nenhum temporizador. Uma por vez: quem pede durante uma rodada recebe a mesma rodada, salvo
  * quando pede outro corte da carteira. Esse espera a rodada acabar e roda outra com o corte dele.
  * Cada fonte lê tudo antes de gravar e grava a leitura inteira numa linha do cache, então uma
  * queda no meio deixa a leitura anterior intacta, e a próxima rodada converge.
@@ -180,6 +181,15 @@ export function sincronizacaoParaOLeitor(rodada: Sincronizacao, leitor: Leitor):
     return { ...fonte, ...(fonte.erro === undefined ? {} : { erro: paraOLeitor(fonte.erro, leitor) }), ...contasParaOLeitor(fonte.contas) };
   });
   return { ...rodada, fontes };
+}
+
+/** Até quando o CRM pediu para não ser chamado, pela maior `esperaS` dos erros da rodada. `null` quando ele não pediu. */
+export function esperaPedidaNaRodada(rodada: Sincronizacao): Instante | null {
+  const esperas = rodada.fontes.flatMap((fonte) => {
+    const erro = fonte.situacao === "leu" ? fonte.semConsultaAoCrm?.erro : fonte.erro;
+    return erro?.esperaS === undefined ? [] : [erro.esperaS];
+  });
+  return esperas.length === 0 ? null : instante(new Date(Date.parse(rodada.terminadaEm) + Math.max(...esperas) * 1000));
 }
 
 /** Evento leve do SSE: só onde a rodada está, sem dado do CRM. */

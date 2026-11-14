@@ -100,6 +100,11 @@ export function App() {
   const lembrada = useListaLembrada(rota);
   const modelo = modeloDoMenu(rota, dia.dados, conexao.estado, lembrada, new Date());
 
+  // Carregar a página é o vendedor abrindo o painel. A reconexão do SSE não conta: ela não é ação dele.
+  useEffect(() => {
+    void api.painelAberto();
+  }, []);
+
   useEffect(() => {
     if (lida === null && rota !== null) window.location.replace(hashDaRota(rota));
   }, [lida, rota]);

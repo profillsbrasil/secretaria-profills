@@ -8,6 +8,7 @@ import { definirBackendDoCofre } from "../../nucleo/banco";
 import type { EstadoAgente, EstadoPainel } from "../../nucleo/dominio";
 import { iniciarServidor, lerArquivoDoServidor, type ArquivoDoServidor, type ServidorRodando } from "../../nucleo/servidor";
 import { montarBancada, type Alvos, type Bancada } from "../falsos/bancada";
+import type { CrmFalso } from "../falsos/crm";
 import type { LeiturasDoWacliFalso, PassoDoWacliFalso } from "../falsos/wacli";
 
 const LIMITE_DA_ESPERA_MS = 15_000;
@@ -50,8 +51,10 @@ export interface Eventos<E> {
   readonly textos: string[];
   /** Resolve no primeiro evento, recebido ou futuro, que satisfaz `quando`. */
   ate(quando: (estado: E) => boolean, descricao: string): Promise<E>;
-  /** Resolve quando o texto cru do fluxo, de qualquer evento, contém `trecho`. */
-  ateTexto(trecho: string, descricao: string): Promise<void>;
+  /** Resolve quando o texto cru do fluxo, de qualquer evento, contém `trecho` pelo menos `vezes` vezes (uma, sem o número). */
+  ateTexto(trecho: string, descricao: string, vezes?: number): Promise<void>;
+  /** Quantas vezes `trecho` já apareceu no texto cru do fluxo. */
+  vezes(trecho: string): number;
   /** Resolve quando o servidor fecha o fluxo. */
   readonly fim: Promise<void>;
   fechar(): void;
@@ -62,7 +65,8 @@ function lerEventos<E>(resposta: Response, guardar: string[]): Eventos<E> {
   const recebidos: E[] = [];
   const textos: string[] = [];
   const esperas = new Set<{ quando: (estado: E) => boolean; resolver: (estado: E) => void }>();
-  const esperasDeTexto = new Set<{ trecho: string; resolver: () => void }>();
+  const esperasDeTexto = new Set<{ trecho: string; vezes: number; resolver: () => void }>();
+  const contar = (trecho: string) => textos.join("").split(trecho).length - 1;
   const leitor = resposta.body.getReader();
   const fim = (async () => {
     const decodificador = new TextDecoder();
@@ -75,9 +79,8 @@ function lerEventos<E>(resposta: Response, guardar: string[]): Eventos<E> {
         textos.push(texto);
         guardar.push(texto);
         resto += texto;
-        const lido = textos.join("");
         for (const espera of esperasDeTexto) {
-          if (lido.includes(espera.trecho)) {
+          if (contar(espera.trecho) >= espera.vezes) {
             esperasDeTexto.delete(espera);
             espera.resolver();
           }
@@ -124,11 +127,13 @@ function lerEventos<E>(resposta: Response, guardar: string[]): Eventos<E> {
         esperas.add(espera);
       });
     },
-    ateTexto(trecho, descricao) {
-      if (textos.join("").includes(trecho)) return Promise.resolve();
+    vezes: contar,
+    ateTexto(trecho, descricao, vezes = 1) {
+      if (contar(trecho) >= vezes) return Promise.resolve();
       return new Promise((resolver, rejeitar) => {
         const espera = {
           trecho,
+          vezes,
           resolver: () => {
             clearTimeout(limite);
             resolver();
@@ -223,7 +228,26 @@ export const REPO = join(import.meta.dir, "..", "..");
 
 const JSON_NO_CORPO = { "Content-Type": "application/json" };
 
-/** O vendedor pareia e confirma a conta pelo painel: o WhatsApp fica `conectado`, e `leituras` é o que o wacli falso devolve ao ler. */
+/** O SSE traz o fim de uma rodada de sincronização. */
+export const FIM_DA_RODADA = '"etapa":"terminou"';
+
+/**
+ * O vendedor faz o login do CRM pelo painel. Chegar a `conectado` dispara uma rodada: o helper espera ela
+ * terminar e o CRM falso esquecer as chamadas dela, para o teste contar só as que ele faz.
+ */
+export async function conectarCrmNoPalco(p: Palco, falso: CrmFalso): Promise<void> {
+  const eventos = await p.eventosDoPainel();
+  const destino = (await p.painel("/oauth/crm/iniciar")).headers.get("location");
+  if (destino === null) throw new Error("o painel não abriu o login do CRM");
+  const retorno = await p.cru(`/oauth/crm/retorno?${await falso.autorizar(destino)}`, { headers: { "Sec-Fetch-Site": "cross-site" } });
+  if (retorno.status !== 200) throw new Error(`o retorno do CRM respondeu HTTP ${retorno.status}`);
+  await eventos.ate((e) => e.conectores.crm.estado.fase === "conectado", "CRM conectado");
+  await eventos.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando o CRM conectou");
+  eventos.fechar();
+  falso.zerarChamadas();
+}
+
+/** O vendedor pareia e confirma a conta pelo painel: o WhatsApp fica `conectado`, e `leituras` é o que o wacli falso devolve ao ler. Espera a rodada que a conexão dispara. */
 export async function conectarWhatsappNoPalco(p: Palco, leituras: LeiturasDoWacliFalso = {}): Promise<void> {
   p.bancada.roteiro({ auth: PAREAR, sync: ESPELHAR, leituras });
   await p.servidor.pronto;
@@ -240,4 +264,5 @@ export async function conectarWhatsappNoPalco(p: Palco, leituras: LeiturasDoWacl
     const estado = e.conectores.whatsapp.estado;
     return estado.fase === "conectado" && estado.espelho === "ao_vivo";
   }, "espelho ao vivo");
+  await eventos.ateTexto(FIM_DA_RODADA, "o fim da rodada de quando o WhatsApp conectou");
 }

@@ -121,6 +121,8 @@ export interface CrmFalso {
   /** Um access token válido sem passar pelo login, para testar o cliente MCP sozinho. */
   emitirAcesso(): string;
   registro(): RegistroDoCrmFalso;
+  /** Esquece as chamadas de ferramenta, e `chamadasAntesDoLimite` volta a contar do zero. Serve ao teste que conta só o que vem depois da rodada automática de conectar. */
+  zerarChamadas(): void;
   parar(): Promise<void>;
 }
 
@@ -777,6 +779,9 @@ export function iniciarCrmFalso(opcoes: { readonly agora?: () => number } = {}):
       }
     },
     registro: () => ({ ...contagem, chamadasDeFerramenta: [...chamadasDeFerramenta], clientesRecusados: [...clientesRecusados], segredos: [...segredos] }),
+    zerarChamadas: () => {
+      chamadasDeFerramenta.length = 0;
+    },
     parar: () => servidor.stop(true),
   };
 }
