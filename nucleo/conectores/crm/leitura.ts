@@ -215,15 +215,18 @@ interface ListaLida<I> {
 function listaDoCrm<T extends z.ZodType>(item: T) {
   return z.array(z.unknown()).transform((crus, ctx): ListaLida<z.output<T>> => {
     const itens: z.output<T>[] = [];
+    const caminhosFora: PropertyKey[][] = [];
     let ultimoId: number | null = null;
-    for (const cru of crus) {
+    for (const [indice, cru] of crus.entries()) {
       const lido = item.safeParse(cru);
       if (lido.success) itens.push(lido.data);
+      else caminhosFora.push(...lido.error.issues.map((issue) => [indice, ...issue.path]));
       const doItem = comId.safeParse(cru);
       if (doItem.success) ultimoId = doItem.data.id;
     }
     if (crus.length > 0 && itens.length === 0) {
-      ctx.addIssue({ code: "custom", message: "nenhum item no formato" });
+      // Só os caminhos, como em `ondeNaoBateu`: o valor pode ser dado de cliente.
+      for (const path of caminhosFora) ctx.addIssue({ code: "custom", message: "fora do formato", path });
       return z.NEVER;
     }
     return { itens, fora: crus.length - itens.length, ultimoId };

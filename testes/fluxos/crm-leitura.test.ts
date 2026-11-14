@@ -239,6 +239,8 @@ describe("cada tool, caminho feliz", () => {
     expect(concluidos).toEqual({
       atendimentos: [{ id: 9101, assunto: "CANARIO Assunto 9101", sinais: [], status: "Concluído", data: dia, cliente: { id: 8001, nome: "CANARIO Cliente Atendimento" }, sinaisDoCliente: [] }],
       mais: false,
+      fora_por_cadastro_incompleto: 0,
+      ultimo_id: 9101,
     } as never);
     expect(concluidos.atendimentos[0]).not.toHaveProperty("campo_que_o_crm_acrescentou");
 
