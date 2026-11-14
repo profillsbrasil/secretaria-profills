@@ -299,19 +299,29 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
     await rodarSeDecidir(proximo);
   }
 
+  /**
+   * O fim da rodada automática, que ninguém espera. O que chega aqui é a escrita do registro que falhou (disco cheio,
+   * pasta sem permissão) ou uma rodada que rejeitou: fica no registro de erro, e o servidor segue de pé.
+   */
+  function automaticaFalhou(erro: unknown): void {
+    registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro });
+  }
+
   const automatica = opcoes.sincronizacaoAutomatica ?? true;
-  let retratoAnterior = estado();
   if (automatica) {
+    let retratoAnterior = estado();
     ouvintes.add((depois) => {
       const gatilho: GatilhoAutomatico = { tipo: "conectores_mudaram", antes: retratoAnterior, depois };
       retratoAnterior = depois;
       const decisao = decidir(gatilho);
       if (!decisao.dispara || decisao.motivo !== "conectou") return;
       // A senha da conta de e-mail e o espelho do WhatsApp entram nos efeitos, depois da fase: a rodada espera os efeitos assentarem.
-      void Promise.all(motores().map((motor) => motor.assentar())).then(() => {
-        registro.info("sincronizacao.automatica", { motivo: decisao.motivo, conector: decisao.conector });
-        return rodarPorConexao(gatilho);
-      });
+      void Promise.all(motores().map((motor) => motor.assentar()))
+        .then(() => {
+          registro.info("sincronizacao.automatica", { motivo: decisao.motivo, conector: decisao.conector });
+          return rodarPorConexao(gatilho);
+        })
+        .catch(automaticaFalhou);
     });
   }
 
@@ -374,7 +384,7 @@ export function criarConectores(ambiente: Ambiente, banco: BancoAberto, cofre: C
       });
       if (decisao.dispara && decisao.motivo !== "conectou" && automatica && parando === null) {
         registro.info("sincronizacao.automatica", { motivo: decisao.motivo, fonte: decisao.fonte });
-        void sincronizar().catch((erro: unknown) => registro.erro("sincronizacao.automatica_falhou", { erro: erro instanceof Error ? erro.name : typeof erro }));
+        void sincronizar().catch(automaticaFalhou);
       }
       return decisao;
     },
