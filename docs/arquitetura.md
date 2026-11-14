@@ -118,7 +118,7 @@ Cofre fora do ar nessa hora não muda nada: a conta fica com o estado gravado, e
 
 ## E-mail: coleta de cabeçalhos e leitura
 
-A Secretária guarda os cabeçalhos dos e-mails de cada conta conectada, dentro da janela da conta, e lê o corpo de um e-mail só sob demanda. Nada sincroniza sozinho: a coleta roda na fonte `email` do `sincronizar`, como as outras fontes. O e-mail continua opcional: sem conta, a fonte sai `pulada` com `email_sem_conta` e nada muda para o vendedor.
+A Secretária guarda os cabeçalhos dos e-mails de cada conta conectada, dentro da janela da conta, e lê o corpo de um e-mail só sob demanda. A coleta roda na fonte `email` de cada sincronização, como as outras fontes, e a conta que chega a `conectado` dispara uma (seção "Sincronização automática"). O e-mail continua opcional: sem conta, a fonte sai `pulada` com `email_sem_conta` e nada muda para o vendedor.
 
 | Peça | Onde |
 |---|---|
@@ -292,7 +292,7 @@ Se o domínio do CRM mudar, o `client_id` muda junto, porque é uma URL desse do
 
 ### Sincronizar
 
-`POST /api/sincronizar` (painel e agente) e `bun secretaria sincronizar` são os únicos gatilhos. Nenhum temporizador lê o CRM. Uma rodada por vez: o pedido que chega durante uma rodada recebe a mesma, com `jaEmAndamento: true`. O pedido com outro corte de dias sem atendimento espera essa rodada acabar e roda outra com o corte dele. Ele só recebe a rodada em curso quando ela achou a conexão com problema, e aí a carteira não foi lida.
+`POST /api/sincronizar` (painel e agente) e `bun secretaria sincronizar` pedem uma rodada na hora. Além deles, a Secretária sincroniza sozinha nos dois momentos de "Sincronização automática", logo abaixo. Nenhum temporizador lê o CRM. Uma rodada por vez: o pedido que chega durante uma rodada recebe a mesma, com `jaEmAndamento: true`. O pedido com outro corte de dias sem atendimento espera essa rodada acabar e roda outra com o corte dele. Ele só recebe a rodada em curso quando ela achou a conexão com problema, e aí a carteira não foi lida.
 
 | Fonte | Tools | Cache |
 |---|---|---|
@@ -311,6 +311,23 @@ Se o domínio do CRM mudar, o `client_id` muda junto, porque é uma URL desse do
 - A rodada tem prazo de 2 minutos, as conversas e o e-mail incluídos. O `parar()` do servidor corta as leituras em voo e espera a rodada antes de fechar o banco.
 - O SSE manda `event: sincronizacao` a cada passo, igual para o painel e o agente, sem dado do CRM: `{id, etapa: "comecou", fontes}`, `{id, etapa: "fonte", fonte, situacao}` com `lendo`, `leu`, `falhou` ou `pulada`, e `{id, etapa: "terminou"}`.
 - `crm_cache` é descartável: apagar a tabela inteira não perde dado do vendedor, e o Meu dia volta a dizer `sem_leitura`. Atendimento, proposta e cliente não viram tabela própria local. O cache não guarda token.
+
+### Sincronização automática
+
+A Secretária sincroniza sozinha em dois momentos, os dois disparados por uma ação do vendedor. A função pura `decidirSincronizacaoAutomatica` (`nucleo/dominio/sincronizacao-automatica.ts`) decide. A fachada dos conectores (`nucleo/conectores/index.ts`) pede a rodada pelo mesmo `sincronizar` do botão e do agente, sem esperar por ela.
+
+| Gatilho | Dispara | Não dispara |
+|---|---|---|
+| Um conector chega a `conectado` | o WhatsApp vai de `confirmar_conta` a `conectado`, o CRM de `autorizando`, ou uma conta de e-mail de `testando` | sondagem e reinício: `atencao` ou a fase gravada que volta a `conectado` não passam pela fase do pedido |
+| `POST /api/painel/aberto`, só da sessão do painel | a leitura mais velha das fontes conectadas tem mais de 30 minutos (`LEITURA_VELHA_MS`), ou uma fonte conectada nunca foi lida | nenhum conector conectado, leitura de 30 minutos ou menos, ou uma rodada que começou há 30 minutos ou menos |
+
+- O painel chama `POST /api/painel/aberto` uma vez a cada carga da página (`nucleo/painel/App.tsx`). A reconexão do SSE não chama. A rota espera a reconciliação de boot, decide e responde a decisão sem esperar a rodada. O andamento chega pelo `event: sincronizacao`, e o rodapé do Meu dia mostra Sincronizando, como numa rodada pedida pelo agente.
+- O Bearer do agente recebe `nao_autorizado` nessa rota. Nenhum comando do CLI dispara rodada automática: o agente que precisa de leitura fresca roda `sincronizar`.
+- A idade de cada fonte é a do `lido_em` dela: `agenda`, `propostas` e `carteira` com o CRM conectado, `conversas` com o WhatsApp conectado, e `email` pela conta conectada lida há mais tempo. A fonte de um conector fora de `conectado` não conta.
+- A rodada que falhou não se repete sozinha. O começo da última rodada, de qualquer gatilho, fica em memória, e o painel aberto até 30 minutos depois dele não sincroniza, nem com fonte sem leitura. A maior `erro.esperaS` da última rodada (`esperaPedidaNaRodada`, `nucleo/conectores/sincronizacao.ts`) segura os dois gatilhos até passar.
+- Os dois gatilhos seguem a regra de uma rodada por vez. A rodada de conectar espera os efeitos da transição assentarem (a senha da conta no cofre, o espelho do WhatsApp). Quando ela cai numa rodada em voo, que pode ter começado sem o conector novo, roda mais uma depois dela.
+- O reinício apaga a memória da última rodada, e o primeiro painel aberto depois dele decide pelo `lido_em` guardado.
+- `testes/servidor/sincronizacao-automatica.test.ts` prova os dois gatilhos, o reinício, o agente e a espera do CRM contra o CRM falso. No navegador, `bun testes/manual/subir-com-falsos.ts <porta> --pronto --leitura-velha` reinicia o servidor com o relógio 31 minutos à frente, e o painel, ao abrir, sincroniza sozinho.
 
 ### Blocos do Meu dia
 
