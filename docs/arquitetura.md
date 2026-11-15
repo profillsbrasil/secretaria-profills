@@ -1008,7 +1008,7 @@ O pacote não leva `meu/`. Uma pasta extraída do pacote não tem `meu/AGENTS.md
 
 ### Chaves de assinatura
 
-`CHAVES_PUBLICAS` (`nucleo/atualizacao/chaves.ts`) tem lugar para duas chaves Ed25519, cada uma com os 32 bytes da chave pública em base64. A lista está vazia: enquanto estiver, toda versão publicada é recusada com `chave_desconhecida`, e o workflow de release não assina.
+`CHAVES_PUBLICAS` (`nucleo/atualizacao/chaves.ts`) tem duas chaves Ed25519, a ativa e a reserva, cada uma com os 32 bytes da chave pública em base64. Versão assinada por outra chave é recusada com `chave_desconhecida`.
 
 | Papel | Onde fica a chave privada | Assina |
 |---|---|---|
