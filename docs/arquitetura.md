@@ -252,6 +252,20 @@ As regras ficam em `nucleo/tarefas`, sem I/O. `decidir(atual, comando, contexto)
 
 A lateral (`nucleo/painel/Navegacao.tsx`) não lê nada por conta própria. O `App` faz uma leitura de `/api/meu-dia` para o painel inteiro (`useDia`) e passa a mesma `Carga` à tela Meu dia; a lateral conta os blocos e as tarefas dessa leitura em toda tela. O cartão do pé junta o snapshot do SSE (fase de cada conector e de cada conta de e-mail) com as idades do rodapé do Meu dia. `modeloDoMenu` (`nucleo/painel/lateral.ts`) é a função pura que decide o item atual, as contagens, o ponto quente e o destino de cada link. A linha Meu dia volta ao último bloco que a rota mostrou (`listaLembrada`), guardado só na memória da aba. Recolhida e cartão aberto ficam no `localStorage`. No celular, o mesmo menu abre numa gaveta pela esquerda, pelo botão Menu.
 
+### Quem usa
+
+O cartão do pé mostra quem está usando: avatar com as iniciais, o primeiro nome e "Profills · nome do CRM" ou "Profills · só neste computador". Sem nome, a linha diz "Diga seu nome", e o clique abre a janela de dizer ou mudar o nome. Recolhida, sobra o avatar com a dica.
+
+| Nome | Onde mora | Quem grava |
+|---|---|---|
+| Digitado pelo vendedor | `instalacao.nome_do_vendedor` | o painel, em `POST /api/painel/quem-usa` |
+| Do CRM | `conector.nome_no_crm`, na linha `crm`, com `nome_no_crm_lido_em` | a fonte `propostas` da sincronização |
+| Já perguntou | `instalacao.nome_perguntado_em` | Começar ou Agora não, no painel |
+
+- O nome do CRM é o `responsavel.nome` das propostas que `listar_propostas` devolve com `escopo=minhas`, lido na rodada que a fonte `propostas` já faz, sem chamada a mais. A rodada ao conectar o CRM o traz. Passa por `textoExterno`, e o nome com sinal de injeção não é guardado (`nomeDoResponsavel`). Uma leitura sem proposta enviada não apaga o nome guardado. O CRM em `desconectado` zera os dois campos: a próxima conexão pode ser de outra conta.
+- `decidirQuemUsa` (`nucleo/dominio/quem-usa.ts`) é a regra: o nome digitado vence sempre, e o do CRM nunca o sobrescreve. Do CRM, só o primeiro nome e as iniciais saem do servidor. Sem nome, o painel abre as boas-vindas uma vez, quando o CRM não está conectado ou já leu as propostas sem achar o nome. Com o CRM conectado e as propostas ainda não lidas, ele espera a rodada.
+- `GET /api/painel/quem-usa` é só da sessão do painel: o Bearer do agente recebe `nao_autorizado`. No `POST`, o agente recebe `so_no_painel`. O nome é dado pessoal: não vai ao CRM, ao registro, ao `status`, ao `diagnostico` nem ao pedido de ajuda. O painel relê a rota no fim de cada rodada e quando o CRM muda de fase. `testes/servidor/quem-usa.test.ts` cobre a regra contra o CRM falso.
+
 ## Leitura do CRM
 
 O servidor lê o CRM pelo mesmo MCP que o agente usa, com o token do login do painel. Para ler, a tabela `FERRAMENTAS` de `nucleo/conectores/crm/leitura.ts` é a única lista de tools que ele chama (`minha_agenda`, `listar_propostas`, `ver_proposta`, `minha_carteira`, `buscar_clientes`, `ver_cliente`, `meus_atendimentos`). O tipo de `LeitorDoCrm.ler` só aceita esses nomes, e o tempo de execução recusa outro com `crm_ferramenta_recusada` antes de abrir a rede. O servidor grava no CRM só o que o vendedor aprovou no cartão: a tabela de escrita é outra, `ESCRITAS` em `nucleo/conectores/crm/escrita.ts`, e a seção "Gravação no CRM", dentro de "Fila de aprovação", a descreve.
