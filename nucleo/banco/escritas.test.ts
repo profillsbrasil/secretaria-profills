@@ -374,6 +374,10 @@ describe("migrações 0011 e 0012", () => {
     const antigas = join(pasta, "migracoes-antigas");
     mkdirSync(antigas);
     for (const nome of readdirSync(PASTA_DO_NUCLEO).filter((nome) => nome.endsWith(".sql") && nome < "0011")) copyFileSync(join(PASTA_DO_NUCLEO, nome), join(antigas, nome));
+    // A trilha até a 0012: as migrações depois dela mudam colunas da `conector`, fora do que este teste compara.
+    const ate0012 = join(pasta, "migracoes-ate-0012");
+    mkdirSync(ate0012);
+    for (const nome of readdirSync(PASTA_DO_NUCLEO).filter((nome) => nome.endsWith(".sql") && nome < "0013")) copyFileSync(join(PASTA_DO_NUCLEO, nome), join(ate0012, nome));
     const banco = abrirBanco(join(pasta, "secretaria.db"));
     abertos.push(banco);
     const comum = { trilha: "nucleo", dirBackups: join(pasta, "backups"), agora: T0 } as const;
@@ -384,7 +388,7 @@ describe("migrações 0011 e 0012", () => {
     const tabelasAntes = (banco.sqlite.query("SELECT name FROM sqlite_master WHERE type = 'table'").all() as { name: string }[]).map((t) => t.name);
     expect(tabelasAntes).not.toContain("escrita_crm");
 
-    const resultado = migrar(banco.sqlite, { ...comum, pasta: PASTA_DO_NUCLEO });
+    const resultado = migrar(banco.sqlite, { ...comum, pasta: ate0012 });
     expect(resultado.aplicadas).toEqual(["0011_fila_de_aprovacao", "0012_decisao_so_insercao"]);
     const depois = JSON.stringify([banco.sqlite.query("SELECT * FROM tarefa").all(), banco.sqlite.query("SELECT * FROM nota").all(), banco.sqlite.query("SELECT * FROM conector").all()]);
     expect(depois).toBe(antes);
