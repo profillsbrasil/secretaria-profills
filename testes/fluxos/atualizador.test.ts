@@ -4,22 +4,63 @@
  * Na queda, quem volta é o `bun secretaria abrir` da própria instalação, como o vendedor o roda.
  */
 import { afterEach, describe, expect, test } from "bun:test";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { atualizar, caminhosDoAtualizador, efeitosReais, lerAndamento, type Andamento } from "../../nucleo/atualizador";
+import { atualizar, caminhosDoAtualizador, efeitosReais, lerAndamento, recuperar, type Andamento } from "../../nucleo/atualizador";
+import { bancoEmUso } from "../../nucleo/banco/abrir";
 import { COMANDOS } from "../../nucleo/cli/comandos";
-import type { Resultado } from "../../nucleo/dominio";
+import { ERROS, type Resultado } from "../../nucleo/dominio";
+import { encerrarPid, vivo } from "../../nucleo/processos";
 import { montarInstalacao, retratoDaPasta, type InstalacaoMinima } from "../falsos/instalacao-minima";
 
 const REPO = join(import.meta.dir, "..", "..");
 const PRAZO_DO_TESTE_MS = 60_000;
+const PRAZO_DA_ESPERA_MS = 20_000;
+const INTERVALO_DA_ESPERA_MS = 25;
 
 let instalacao: InstalacaoMinima;
-afterEach(() => instalacao.limpar());
+let soltos: number[] = [];
+afterEach(async () => {
+  for (const pid of soltos.splice(0)) await encerrarPid(pid, { educado: false });
+  await instalacao.limpar();
+});
+
+const ambienteDaInstalacao = () => ({ ...process.env, SECRETARIA_DADOS: instalacao.dirDados });
 
 function rodarProcesso(argv: string[]): { readonly codigo: number | null; readonly stdout: string; readonly stderr: string } {
-  const feito = Bun.spawnSync(argv, { cwd: instalacao.raiz, env: { ...process.env, SECRETARIA_DADOS: instalacao.dirDados }, stdin: "ignore", stdout: "pipe", stderr: "pipe" });
+  const feito = Bun.spawnSync(argv, { cwd: instalacao.raiz, env: ambienteDaInstalacao(), stdin: "ignore", stdout: "pipe", stderr: "pipe" });
   return { codigo: feito.exitCode, stdout: feito.stdout.toString(), stderr: feito.stderr.toString() };
 }
+
+async function esperar(condicao: () => boolean, oQue: string): Promise<void> {
+  const fim = Date.now() + PRAZO_DA_ESPERA_MS;
+  while (!condicao()) {
+    if (Date.now() >= fim) throw new Error(`${oQue} não aconteceu em ${PRAZO_DA_ESPERA_MS} ms`);
+    await Bun.sleep(INTERVALO_DA_ESPERA_MS);
+  }
+}
+
+/** O pid que um processo da instalação mínima anunciou na pasta de dados. O teste o encerra no fim, se sobrar. */
+async function pidAnunciado(nome: string): Promise<number> {
+  const arquivo = join(instalacao.dirDados, nome);
+  await esperar(() => existsSync(arquivo), `o anúncio ${nome}`);
+  const pid = Number(readFileSync(arquivo, "utf8"));
+  soltos.push(pid);
+  return pid;
+}
+
+/** Processo que não é filho do teste some depois de quem o adotou recolher: só resta conferir. */
+async function morreu(pid: number): Promise<boolean> {
+  try {
+    await esperar(() => !vivo(pid), `a morte do pid ${pid}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** O Windows solta o lock da trava depois que o processo morto some. */
+const travaLivre = () => esperar(() => !bancoEmUso(caminhosDoAtualizador(instalacao.raiz, instalacao.dirDados).trava), "a trava livre");
 
 /** O atualizador como o servidor o sobe: o arquivo que veio na versão nova, com a raiz e a pasta de dados. */
 function atualizarPelaNova() {
@@ -178,10 +219,9 @@ describe("matar o atualizador e rodar abrir volta à 0.1.0", () => {
         { raizDoRepo: instalacao.raiz, dirDados: instalacao.dirDados },
         {
           ...reais,
-          async instalar(raizDoRepo, dirDados, prazoMs) {
+          iniciarInstalar(raizDoRepo, dirDados) {
             chegou();
-            await segurando;
-            return reais.instalar(raizDoRepo, dirDados, prazoMs);
+            return { pid: undefined, fim: segurando.then(() => reais.iniciarInstalar(raizDoRepo, dirDados).fim) };
           },
         },
       );
@@ -228,6 +268,174 @@ describe("matar o atualizador e rodar abrir volta à 0.1.0", () => {
       expect(aberto).toMatchObject({ ok: true, dados: { subiu: false } });
       expect(andamentoNoDisco()).toMatchObject({ fase: "concluido", falha: null });
       expect(await instalacao.versaoNoAr()).toBe("0.2.0");
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+});
+
+describe("matar o atualizador com o instalar da versão nova ainda vivo", () => {
+  test.each([
+    ["antes de abrir o banco", "antes"],
+    ["com o banco na mão", "com-o-banco"],
+  ])(
+    "instalar parado %s: abrir o encerra antes de voltar à 0.1.0",
+    async (_nome, quando) => {
+      instalacao = montarInstalacao({ naNova: { "instalar-espera": quando } });
+      const pasta = retratoDaPasta(instalacao.raiz);
+      const daNova = retratoDaPasta(instalacao.nova);
+      const bancos = instalacao.retratoDosBancos();
+      const atualizador = Bun.spawn([process.execPath, join(instalacao.nova, "nucleo", "atualizador", "main.ts"), "--repo", instalacao.raiz, "--dados", instalacao.dirDados], {
+        cwd: instalacao.raiz,
+        env: ambienteDaInstalacao(),
+        stdio: ["ignore", "ignore", "ignore"],
+      });
+      const instalar = await pidAnunciado("instalar-comecou");
+      atualizador.kill(process.platform === "win32" ? undefined : "SIGKILL");
+      await atualizador.exited;
+      await travaLivre();
+
+      const aberto = rodarAbrir();
+
+      expect(aberto).toMatchObject({ ok: true, dados: { subiu: true, atualizacaoDesfeita: { de: "0.1.0", para: "0.2.0" } } });
+      expect(await morreu(instalar)).toBe(true);
+      expect(await instalacao.versaoNoAr()).toBe("0.1.0");
+      expect(andamentoNoDisco()).toMatchObject({ fase: "desfeito", falha: { passo: "instalar", motivo: "interrompida" } });
+      expect(retratoDaPasta(instalacao.raiz)).toEqual(pasta);
+      expect(retratoDaPasta(instalacao.nova)).toEqual(daNova);
+      await instalacao.pararServidor();
+      expect(instalacao.retratoDosBancos()).toEqual(bancos);
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+
+  test(
+    "encerrar o instalar encerra também os processos que ele subiu",
+    async () => {
+      instalacao = montarInstalacao();
+      writeFileSync(join(instalacao.raiz, "instalar-com-neto"), "");
+      const efeitos = efeitosReais();
+
+      const instalando = efeitos.iniciarInstalar(instalacao.raiz, instalacao.dirDados);
+      if (instalando.pid === undefined) throw new Error("o instalar não nasceu");
+      soltos.push(instalando.pid);
+      const neto = await pidAnunciado("neto");
+      expect(efeitos.existe(instalando.pid)).toBe(true);
+
+      expect(await efeitos.encerrarArvore(instalando.pid)).toBe(true);
+
+      expect(await instalando.fim).toMatchObject({ ok: false });
+      expect(efeitos.existe(instalando.pid)).toBe(false);
+      expect(await morreu(neto)).toBe(true);
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+});
+
+describe("queda com o servidor da versão nova ainda nascendo", () => {
+  /** O atualizador morre logo depois de subir o servidor da 0.2.0, que para antes de abrir o banco. */
+  async function cairComOServidorNascendo(): Promise<number> {
+    instalacao = montarInstalacao({ naNova: { "servidor-espera": "" } });
+    rodarProcesso([process.execPath, join(REPO, "testes", "falsos", "atualizador-que-cai.ts"), instalacao.raiz, instalacao.dirDados, "servidor-nascendo"]);
+    expect(andamentoNoDisco().fase).toBe("subir");
+    const servidor = await pidAnunciado("servidor-comecou");
+    await travaLivre();
+    return servidor;
+  }
+
+  test(
+    "a volta espera o servidor responder e só grava o fim",
+    async () => {
+      await cairComOServidorNascendo();
+      const reais = efeitosReais();
+
+      const volta = await recuperar(
+        { raizDoRepo: instalacao.raiz, dirDados: instalacao.dirDados, versaoNoAr: null },
+        {
+          ...reais,
+          // A sonda só roda com a volta já esperando o servidor: é aí que ele segue.
+          async versaoNoAr(dirDados, pid) {
+            writeFileSync(join(instalacao.dirDados, "servidor-siga"), "");
+            return reais.versaoNoAr(dirDados, pid);
+          },
+        },
+      );
+
+      expect(volta).toEqual({ tipo: "concluida", de: "0.1.0", para: "0.2.0" });
+      expect(andamentoNoDisco()).toMatchObject({ fase: "concluido", falha: null });
+      expect(await instalacao.versaoNoAr()).toBe("0.2.0");
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+
+  test(
+    "o servidor que não responde no prazo é encerrado antes de a pasta voltar",
+    async () => {
+      const servidor = await cairComOServidorNascendo();
+
+      const volta = await recuperar({ raizDoRepo: instalacao.raiz, dirDados: instalacao.dirDados, versaoNoAr: null, prazos: { servidorMs: 300, intervaloMs: 25 } });
+
+      expect(volta).toEqual({ tipo: "desfeita", de: "0.1.0", para: "0.2.0" });
+      expect(await morreu(servidor)).toBe(true);
+      expect(andamentoNoDisco()).toMatchObject({ fase: "desfeito", falha: { passo: "subir", motivo: "interrompida" } });
+      expect(JSON.parse(readFileSync(join(instalacao.raiz, "package.json"), "utf8"))).toMatchObject({ version: "0.1.0" });
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+});
+
+describe("a pasta rasgada com a trava presa", () => {
+  test(
+    "com as dependências fora do lugar e um atualizador vivo, bun secretaria responde atualizacao_em_andamento no formato do CLI",
+    async () => {
+      instalacao = montarInstalacao();
+      rodarProcesso([process.execPath, join(REPO, "testes", "falsos", "atualizador-que-cai.ts"), instalacao.raiz, instalacao.dirDados, "trocar", "node_modules"]);
+      expect(existsSync(join(instalacao.raiz, "node_modules"))).toBe(false);
+      const { trava } = caminhosDoAtualizador(instalacao.raiz, instalacao.dirDados);
+      const segurar = `const { Database } = require("bun:sqlite"); const trava = new Database(${JSON.stringify(trava)}, { create: true }); for (const sql of ["PRAGMA locking_mode = EXCLUSIVE", "PRAGMA journal_mode = WAL", "BEGIN IMMEDIATE", "COMMIT"]) trava.run(sql); process.stdout.write("pronto\\n"); setInterval(() => trava.filename, 60_000);`;
+      const vivoComATrava = Bun.spawn([process.execPath, "-e", segurar], { stdin: "ignore", stdout: "pipe", stderr: "inherit" });
+      soltos.push(vivoComATrava.pid);
+      const { value } = await vivoComATrava.stdout.getReader().read();
+      expect(new TextDecoder().decode(value)).toBe("pronto\n");
+
+      const emJson = rodarProcesso([process.execPath, "run", "secretaria", "abrir", "--sem-navegador", "--json"]);
+      const emTexto = rodarProcesso([process.execPath, "run", "secretaria", "abrir", "--sem-navegador"]);
+
+      const { mensagem, acaoDoAgente: acao, saida } = ERROS.atualizacao_em_andamento;
+      expect({ codigo: emJson.codigo, ultimaLinha: emJson.stdout.trimEnd().split("\n").at(-1) }).toEqual({
+        codigo: saida,
+        ultimaLinha: JSON.stringify({ v: 1, ok: false, erro: { codigo: "atualizacao_em_andamento", mensagem, acao } }),
+      });
+      expect(emTexto.codigo).toBe(saida);
+      expect(emTexto.stderr).toContain(`${mensagem}\n${acao}\n`);
+      expect(existsSync(join(instalacao.raiz, "node_modules"))).toBe(false);
+
+      vivoComATrava.kill(process.platform === "win32" ? undefined : "SIGKILL");
+      await vivoComATrava.exited;
+      await travaLivre();
+      expect(rodarAbrir()).toMatchObject({ ok: true, dados: { subiu: true, atualizacaoDesfeita: { de: "0.1.0", para: "0.2.0" } } });
+    },
+    PRAZO_DO_TESTE_MS,
+  );
+});
+
+describe("o lock do banco que solta depois do processo", () => {
+  test(
+    "abrir espera o lock soltar e termina a volta, como no Windows",
+    async () => {
+      instalacao = montarInstalacao();
+      rodarProcesso([process.execPath, join(REPO, "testes", "falsos", "atualizador-que-cai.ts"), instalacao.raiz, instalacao.dirDados, "instalar"]);
+      const segurador = Bun.spawn([process.execPath, join(REPO, "testes", "falsos", "banco-que-solta-tarde.ts"), instalacao.dirDados, "1000"], { stdout: "pipe", stderr: "inherit" });
+      const { value } = await segurador.stdout.getReader().read();
+      expect(new TextDecoder().decode(value)).toBe("pronto\n");
+      const anunciado = instalacao.pidDoServidor();
+      if (anunciado === null) throw new Error("o segurador não anunciou o pid");
+      expect(await encerrarPid(anunciado, { educado: false })).toBe(true);
+
+      const aberto = rodarAbrir();
+
+      expect(aberto).toMatchObject({ ok: true, dados: { subiu: true, atualizacaoDesfeita: { de: "0.1.0", para: "0.2.0" } } });
+      expect(await segurador.exited).toBe(0);
+      expect(await instalacao.versaoNoAr()).toBe("0.1.0");
     },
     PRAZO_DO_TESTE_MS,
   );

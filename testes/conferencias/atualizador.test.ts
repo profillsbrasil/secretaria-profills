@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { caminhosDosDados } from "../../nucleo/ambiente";
 import { montarPacote } from "../../nucleo/atualizacao";
-import { caminhosDoAtualizador, unidadeDaTroca } from "../../nucleo/atualizador";
+import { caminhosDoAtualizador, efeitosReais, unidadeDaTroca } from "../../nucleo/atualizador";
+import { horaDeInicio } from "../../nucleo/processos";
 
 const REPO = join(import.meta.dir, "..", "..");
 
@@ -46,5 +47,11 @@ describe("o atualizador roda sozinho", () => {
       servidor: doNucleo.servidor,
     });
     expect(doAtualizador.saidaDoServidor).toBe(join(doNucleo.logs, "servidor-saida.log"));
+  });
+
+  test("a hora de início de um processo é a mesma que o núcleo lê", () => {
+    const doNucleo = horaDeInicio(process.pid);
+    expect(doNucleo).not.toBeNull();
+    expect(efeitosReais().inicioDoProcesso(process.pid)).toBe(doNucleo);
   });
 });

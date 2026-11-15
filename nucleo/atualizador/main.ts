@@ -44,6 +44,45 @@ export interface Troca {
   readonly temNova: boolean;
 }
 
+/**
+ * O `instalar` ou o servidor que o atualizador subiu e que pode seguir vivo depois de ele morrer.
+ * `inicio` é a hora de início que o sistema dá ao pid, em texto opaco: o sistema reaproveita o pid,
+ * e só os dois juntos dizem que o processo é o mesmo. `null`: a hora ainda não foi lida, ou não deu.
+ * Sem ela, a volta confere se o processo do pid nasceu durante a atualização: ver `estadoDoProcesso`.
+ */
+export interface ProcessoDaAtualizacao {
+  readonly papel: "instalar" | "servidor";
+  readonly pid: number;
+  readonly inicio: string | null;
+}
+
+/** O que a volta sabe do pid anotado. Só `nosso` é encerrado. */
+export type EstadoDoProcesso = "nosso" | "nenhum" | "incerto";
+
+/** Erro de relógio entre a hora que o sistema dá ao processo e a que o andamento gravou: o `btime` do Linux e o `lstart` do macOS vêm em segundos inteiros. */
+const FOLGA_DO_NASCIMENTO_MS = 2_000;
+const MESES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** A hora de início de `inicioDoProcesso`, em milissegundos de relógio. `null`: o texto não está no formato do sistema. */
+export function msDoInicio(inicio: string, plataforma: NodeJS.Platform): number | null {
+  if (plataforma === "win32") return /^\d+$/.test(inicio) ? Number((BigInt(inicio) - 621_355_968_000_000_000n) / 10_000n) : null;
+  if (plataforma === "linux") {
+    if (!/^\d+$/.test(inicio)) return null;
+    try {
+      const boot = /^btime (\d+)$/m.exec(readFileSync("/proc/stat", "utf8"))?.[1];
+      // O starttime conta em tiques de 1/100 s desde o boot: o USER_HZ do Linux é 100 nos processadores de mesa.
+      return boot === undefined ? null : Number(boot) * 1_000 + Number(inicio) * 10;
+    } catch {
+      return null;
+    }
+  }
+  const partes = /^\w{3} (\w{3}) +(\d{1,2}) (\d{2}):(\d{2}):(\d{2}) (\d{4})$/.exec(inicio);
+  const mes = MESES.indexOf(partes?.[1] ?? "");
+  if (partes === null || mes === -1) return null;
+  const [dia, hora, minuto, segundo, ano] = partes.slice(2).map(Number) as [number, number, number, number, number];
+  return new Date(ano, mes, dia, hora, minuto, segundo).getTime();
+}
+
 /** `<repo>/.atualizacao/andamento.json`. Gravado por arquivo temporário e rename, a cada mudança de fase. */
 export interface Andamento {
   readonly v: 1;
@@ -60,10 +99,14 @@ export interface Andamento {
   /** Arquivos do núcleo que não batiam com a lista da versão instalada. `null`: sem lista para comparar. */
   readonly mudados: { readonly quantos: number; readonly caminhos: readonly string[] } | null;
   readonly falha: { readonly passo: Passo; readonly motivo: Motivo; readonly detalhe: string } | null;
+  /** Gravado logo depois de o processo nascer e apagado quando ele termina. A volta só mexe na pasta sem ele vivo. */
+  readonly processo: ProcessoDaAtualizacao | null;
 }
 
 export interface Prazos {
   readonly bancoMs: number;
+  /** Quanto a volta espera o lock do banco soltar: o Windows o solta depois que o processo morto some. */
+  readonly soltarBancoMs: number;
   readonly instalarMs: number;
   readonly servidorMs: number;
   readonly intervaloMs: number;
@@ -71,12 +114,20 @@ export interface Prazos {
   readonly esperasDoRenameMs: readonly number[];
 }
 
-export const PRAZOS: Prazos = { bancoMs: 30_000, instalarMs: 900_000, servidorMs: 60_000, intervaloMs: 250, esperasDoRenameMs: [100, 200, 400, 800, 1_500] };
+export const PRAZOS: Prazos = { bancoMs: 30_000, soltarBancoMs: 10_000, instalarMs: 900_000, servidorMs: 60_000, intervaloMs: 250, esperasDoRenameMs: [100, 200, 400, 800, 1_500] };
 
 export interface ServidorSubindo {
   readonly pid: number | undefined;
   saiu(): boolean;
   encerrar(): Promise<void>;
+}
+
+export type Instalado = { readonly ok: true } | { readonly ok: false; readonly detalhe: string };
+
+export interface Instalando {
+  readonly pid: number | undefined;
+  /** Resolve quando o processo do `instalar` sai, também quando foi encerrado. */
+  readonly fim: Promise<Instalado>;
 }
 
 /** O que o atualizador faz fora da própria pasta de trabalho. O teste troca um por vez para injetar a falha. */
@@ -87,9 +138,15 @@ export interface Efeitos {
   copiar(de: string, para: string): void;
   /** Ninguém segura este SQLite agora. Arquivo que não existe está livre. */
   bancoLivre(caminho: string): boolean;
-  /** Roda o `instalar` do código que está em `raizDoRepo`. */
-  instalar(raizDoRepo: string, dirDados: string, prazoMs: number): Promise<{ readonly ok: true } | { readonly ok: false; readonly detalhe: string }>;
+  /** Sobe o `instalar` do código que está em `raizDoRepo`. O prazo é de quem chama. */
+  iniciarInstalar(raizDoRepo: string, dirDados: string): Instalando;
   subirServidor(raizDoRepo: string, dirDados: string): ServidorSubindo;
+  /** A hora de início do processo, como o sistema a registra. `null`: ele não existe, ou o sistema não deixou ler. */
+  inicioDoProcesso(pid: number): string | null;
+  /** Há um processo com este pid, de qualquer dono. Não diz se é o que o atualizador subiu. */
+  existe(pid: number): boolean;
+  /** Encerra à força o processo e os que ele subiu. Verdadeiro quando o processo não existe mais. */
+  encerrarArvore(pid: number): Promise<boolean>;
   /** A versão que o servidor de pid `pid` responde em `/api/info`, ou `null` enquanto ele não responde. */
   versaoNoAr(dirDados: string, pid: number | undefined): Promise<string | null>;
   /** Chamado depois de cada gravação do andamento. */
@@ -119,6 +176,8 @@ export function caminhosDoAtualizador(raizDoRepo: string, dirDados: string) {
     wacli: path.join(dirDados, "bin", process.platform === "win32" ? "wacli.exe" : "wacli"),
     servidor: path.join(dirDados, "servidor.json"),
     saidaDoServidor: path.join(dirDados, "logs", "servidor-saida.log"),
+    /** O que o `instalar` da versão nova escreveu, da última vez que o atualizador o rodou. */
+    saidaDoInstalar: path.join(pasta, "instalar-saida.log"),
     /** Cópia dos bancos, do `meu/` e do wacli de antes da troca para `versao`. */
     copias: (versao: string) => path.join(dirDados, "atualizacoes", versao, "antes"),
   } as const;
@@ -219,7 +278,7 @@ export function lerAndamento(caminho: string): AndamentoLido {
   }
   const versaoOuNada = (valor: unknown): valor is string | null => valor === null || (typeof valor === "string" && PADRAO_DE_VERSAO.test(valor));
   if (!ehObjeto(lido) || lido.v !== 1 || !versaoOuNada(lido.de) || !versaoOuNada(lido.para)) return { tipo: "ilegivel" };
-  const { de, para, iniciadoEm, atualizadoEm, fase, trocas, restaurarDados, mudados, falha } = lido;
+  const { de, para, iniciadoEm, atualizadoEm, fase, trocas, restaurarDados, mudados, falha, processo } = lido;
   if (typeof iniciadoEm !== "string" || typeof atualizadoEm !== "string" || typeof restaurarDados !== "boolean") return { tipo: "ilegivel" };
   if (!(FASES as readonly unknown[]).includes(fase) || !Array.isArray(trocas)) return { tipo: "ilegivel" };
   const plano: Troca[] = [];
@@ -238,9 +297,17 @@ export function lerAndamento(caminho: string): AndamentoLido {
     if (!ehObjeto(falha) || !(PASSOS as readonly unknown[]).includes(falha.passo) || !(MOTIVOS as readonly unknown[]).includes(falha.motivo)) return { tipo: "ilegivel" };
     motivoDaFalha = { passo: falha.passo as Passo, motivo: falha.motivo as Motivo, detalhe: typeof falha.detalhe === "string" ? falha.detalhe : "" };
   }
+  // O andamento gravado antes de existir o campo não o traz: é o mesmo que nenhum processo.
+  let filho: ProcessoDaAtualizacao | null = null;
+  if (processo !== undefined && processo !== null) {
+    if (!ehObjeto(processo) || (processo.papel !== "instalar" && processo.papel !== "servidor")) return { tipo: "ilegivel" };
+    if (!Number.isSafeInteger(processo.pid) || (processo.pid as number) <= 1) return { tipo: "ilegivel" };
+    if (processo.inicio !== null && typeof processo.inicio !== "string") return { tipo: "ilegivel" };
+    filho = { papel: processo.papel, pid: processo.pid as number, inicio: processo.inicio };
+  }
   return {
     tipo: "lido",
-    andamento: { v: 1, de, para, iniciadoEm, atualizadoEm, fase: fase as Fase, trocas: plano, restaurarDados, mudados: contagem, falha: motivoDaFalha },
+    andamento: { v: 1, de, para, iniciadoEm, atualizadoEm, fase: fase as Fase, trocas: plano, restaurarDados, mudados: contagem, falha: motivoDaFalha, processo: filho },
   };
 }
 
@@ -254,7 +321,7 @@ export function gravarAndamento(caminho: string, andamento: Andamento): void {
 /** O andamento que o servidor grava antes de subir o atualizador e pedir a própria parada. */
 export function andamentoPreparado(de: string, para: string): Andamento {
   const agora = new Date().toISOString();
-  return { v: 1, de, para, iniciadoEm: agora, atualizadoEm: agora, fase: "preparado", trocas: [], restaurarDados: false, mudados: null, falha: null };
+  return { v: 1, de, para, iniciadoEm: agora, atualizadoEm: agora, fase: "preparado", trocas: [], restaurarDados: false, mudados: null, falha: null, processo: null };
 }
 
 /** Há uma atualização que não chegou a um fim? Não muda nada: é a pergunta barata que o `abrir` faz. */
@@ -293,6 +360,17 @@ async function esperarAte(condicao: () => boolean | Promise<boolean>, prazoMs: n
     if (await condicao()) return true;
     if (Date.now() >= fim) return false;
     await Bun.sleep(intervaloMs);
+  }
+}
+
+/** `null` quando o prazo acaba antes da promessa. */
+async function comPrazo<T>(promessa: Promise<T>, prazoMs: number): Promise<T | null> {
+  let relogio: ReturnType<typeof setTimeout> | undefined;
+  const venceu = new Promise<null>((resolver) => (relogio = setTimeout(() => resolver(null), prazoMs)));
+  try {
+    return await Promise.race([promessa, venceu]);
+  } finally {
+    clearTimeout(relogio);
   }
 }
 
@@ -402,6 +480,26 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
     return movidas;
   }
 
+  /**
+   * Quem tem hoje o pid anotado. `nosso`: o mesmo processo, pela hora de início anotada ou, sem ela,
+   * por ter nascido entre o começo da atualização e a última gravação do andamento. `incerto`: o pid
+   * existe e não há como confirmar. Passado o prazo do papel, o incerto conta como `nenhum`: o
+   * atualizador não deixaria o processo dele viver tanto.
+   */
+  function estadoDoProcesso(processo: ProcessoDaAtualizacao | null, andamento: Andamento): EstadoDoProcesso {
+    if (processo === null || !efeitos.existe(processo.pid)) return "nenhum";
+    const agora = efeitos.inicioDoProcesso(processo.pid);
+    if (agora !== null && processo.inicio !== null) return agora === processo.inicio ? "nosso" : "nenhum";
+    const nasceu = agora === null ? null : msDoInicio(agora, efeitos.plataforma);
+    if (nasceu !== null) {
+      const [desde, ate] = [Date.parse(andamento.iniciadoEm), Date.parse(andamento.atualizadoEm)];
+      return nasceu >= desde - FOLGA_DO_NASCIMENTO_MS && nasceu <= ate + FOLGA_DO_NASCIMENTO_MS ? "nosso" : "nenhum";
+    }
+    if (!efeitos.existe(processo.pid)) return "nenhum";
+    const prazo = processo.papel === "instalar" ? prazos.instalarMs : prazos.servidorMs;
+    return Date.now() <= Date.parse(andamento.atualizadoEm) + prazo ? "incerto" : "nenhum";
+  }
+
   const BANCOS = ["secretaria.db", "meu.db"];
   const SUFIXOS = ["", "-wal", "-shm"];
 
@@ -410,6 +508,20 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
 
     /** Os dois bancos, o do núcleo e o do vendedor, porque a volta devolve as cópias dos dois. */
     bancosLivres: () => efeitos.bancoLivre(caminhos.banco) && efeitos.bancoLivre(caminhos.bancoDoVendedor),
+
+    estadoDoProcesso,
+
+    /**
+     * A volta renomeia pastas e devolve os bancos: antes dela, o `instalar` ou o servidor que ficou
+     * vivo é encerrado, com os processos que subiu. Processo incerto não é encerrado: o pid pode ser
+     * de outro programa. `preso`: era o nosso e não encerrou.
+     */
+    async semProcesso(processo: ProcessoDaAtualizacao | null, andamento: Andamento): Promise<"livre" | "incerto" | "preso"> {
+      const estado = estadoDoProcesso(processo, andamento);
+      if (estado === "nenhum" || processo === null) return "livre";
+      if (estado === "incerto") return "incerto";
+      return (await efeitos.encerrarArvore(processo.pid)) ? "livre" : "preso";
+    },
 
     /** Confere a versão nova, monta o plano e conta o que o agente do vendedor mudou no núcleo. Não muda nada além de limpar `anterior/`. */
     preparar(): Pick<Andamento, "trocas" | "mudados"> {
@@ -581,12 +693,20 @@ export async function atualizar(
       restaurarDados: false,
       mudados: null,
       falha: null,
+      processo: null,
     };
     const gravar = (mudanca: Partial<Andamento>): Andamento => {
       andamento = { ...andamento, ...mudanca, atualizadoEm: new Date().toISOString() };
       gravarAndamento(caminhos.andamento, andamento);
       efeitos.observar(andamento);
       return andamento;
+    };
+    /** O pid vai para o disco na hora, antes da hora de início: no Windows, ler a hora leva perto de um segundo. */
+    const registrar = (papel: ProcessoDaAtualizacao["papel"], pid: number | undefined): void => {
+      if (pid === undefined) return;
+      gravar({ processo: { papel, pid, inicio: null } });
+      const inicio = efeitos.inicioDoProcesso(pid);
+      if (inicio !== null) gravar({ processo: { papel, pid, inicio } });
     };
     const falhaEm = (passo: Passo, erro: unknown): NonNullable<Andamento["falha"]> => ({
       passo,
@@ -601,6 +721,8 @@ export async function atualizar(
     }
 
     let passo: Passo = "preparar";
+    /** Pelo processo que este atualizador subiu e ainda segura, não pelo pid: enquanto ele não sai, o sistema não dá o pid a outro. */
+    let filhoSaiu = () => true;
     try {
       gravar({ fase: passo });
       const plano = ops.preparar();
@@ -611,18 +733,31 @@ export async function atualizar(
       gravar({ fase: (passo = "trocar") });
       await ops.trocarTudo(andamento.trocas);
       gravar({ fase: (passo = "instalar"), restaurarDados: true });
-      const instalado = await efeitos.instalar(raizDoRepo, dirDados, prazos.instalarMs);
+      const instalando = efeitos.iniciarInstalar(raizDoRepo, dirDados);
+      let instalarSaiu = false;
+      void instalando.fim.then(() => (instalarSaiu = true));
+      filhoSaiu = () => instalarSaiu;
+      registrar("instalar", instalando.pid);
+      const instalado = await comPrazo(instalando.fim, prazos.instalarMs);
+      if (instalado === null) throw new Falha("instalar_falhou", `o instalar não terminou em ${Math.round(prazos.instalarMs / 1000)} s`);
       if (!instalado.ok) throw new Falha("instalar_falhou", instalado.detalhe);
-      gravar({ fase: (passo = "subir") });
+      gravar({ fase: (passo = "subir"), processo: null });
       const servidor = efeitos.subirServidor(raizDoRepo, dirDados);
+      filhoSaiu = servidor.saiu;
+      registrar("servidor", servidor.pid);
       if (!(await ops.servidorResponde(servidor, versao))) {
         await servidor.encerrar();
         throw new Falha("servidor_nao_subiu", `o servidor não respondeu a ${versao} em ${Math.round(prazos.servidorMs / 1000)} s`);
       }
-      gravar({ fase: "concluido" });
+      gravar({ fase: "concluido", processo: null });
     } catch (erro) {
-      gravar({ fase: "desfazer", falha: falhaEm(passo, erro) });
+      const vivo = filhoSaiu() ? null : andamento.processo;
+      gravar({ fase: "desfazer", falha: falhaEm(passo, erro), processo: vivo });
       try {
+        if (vivo !== null) {
+          if (!(await efeitos.encerrarArvore(vivo.pid))) throw new Error(`o processo ${vivo.pid} da atualização não encerrou`);
+          gravar({ processo: null });
+        }
         if (!(await esperarAte(ops.bancosLivres, prazos.bancoMs, prazos.intervaloMs))) throw new Error("o banco seguiu em uso");
         await ops.desfazer(andamento);
       } catch (naVolta) {
@@ -648,12 +783,14 @@ export async function atualizar(
 
 export type Recuperacao =
   | { readonly tipo: "nada" }
-  /** Um atualizador vivo segura a trava. */
+  /** Um atualizador vivo segura a trava, ou o pid anotado existe e não deu para confirmar que é o processo que ele subiu: ninguém o encerra. */
   | { readonly tipo: "em_andamento" }
-  /** O servidor da versão nova já responde: só faltava gravar o fim. */
+  /** O servidor da versão nova responde, agora ou depois de a volta esperar por ele: só faltava gravar o fim. */
   | { readonly tipo: "concluida"; readonly de: string | null; readonly para: string | null }
   | { readonly tipo: "desfeita"; readonly de: string | null; readonly para: string | null }
   | { readonly tipo: "banco_em_uso" }
+  /** O `instalar` ou o servidor que o atualizador subiu segue vivo e não encerrou. Nada foi mexido. */
+  | { readonly tipo: "processo_preso"; readonly papel: ProcessoDaAtualizacao["papel"]; readonly pid: number }
   /** Um servidor responde sobre uma pasta que a atualização pode ter deixado pela metade. A volta só roda com ele parado. */
   | { readonly tipo: "servidor_no_meio"; readonly versaoNoAr: string }
   | { readonly tipo: "falhou"; readonly detalhe: string };
@@ -686,7 +823,8 @@ export async function recuperar(
 ): Promise<Recuperacao> {
   const { raizDoRepo, dirDados } = opcoes;
   if (existsSync(path.join(raizDoRepo, ".git")) || !haAtualizacaoPendente(raizDoRepo)) return { tipo: "nada" };
-  const ops = operacoes(raizDoRepo, dirDados, { ...PRAZOS, ...opcoes.prazos }, efeitos);
+  const prazos = { ...PRAZOS, ...opcoes.prazos };
+  const ops = operacoes(raizDoRepo, dirDados, prazos, efeitos);
   const { caminhos } = ops;
   const trava = segurarTrava(caminhos.trava);
   if (trava === null) return { tipo: "em_andamento" };
@@ -694,15 +832,15 @@ export async function recuperar(
     const lido = lerAndamento(caminhos.andamento);
     if (lido.tipo === "ilegivel") return { tipo: "falhou", detalhe: "o andamento.json da atualização não está num formato que esta versão lê" };
     if (lido.tipo === "ausente" || ehFinal(lido.andamento.fase)) return { tipo: "nada" };
-    const { andamento } = lido;
-    const { de, para } = andamento;
-    const gravar = (mudanca: Partial<Andamento>) => regravar(caminhos.andamento, andamento, mudanca, efeitos);
+    let andamento = lido.andamento;
+    const { de, para, processo } = andamento;
+    const gravar = (mudanca: Partial<Andamento>) => (andamento = regravar(caminhos.andamento, andamento, mudanca, efeitos));
     const falha = falhaDaQueda(andamento);
     if (opcoes.versaoNoAr !== null) {
       // O servidor grava o `preparado` ainda no ar, antes de subir o atualizador e parar.
       if (andamento.fase === "preparado") return { tipo: "nada" };
       if (andamento.fase === "subir" && opcoes.versaoNoAr === para) {
-        gravar({ fase: "concluido" });
+        gravar({ fase: "concluido", processo: null });
         return { tipo: "concluida", de, para };
       }
       // Antes da troca nada mudou de lugar: o servidor no ar é o da versão antiga, e só falta gravar o fim.
@@ -712,8 +850,29 @@ export async function recuperar(
       }
       return { tipo: "servidor_no_meio", versaoNoAr: opcoes.versaoNoAr };
     }
-    if (!ops.bancosLivres()) return { tipo: "banco_em_uso" };
-    if (andamento.fase !== "desfazer") gravar({ fase: "desfazer", falha });
+    if (processo !== null && processo.papel === "servidor" && andamento.fase === "subir" && ops.estadoDoProcesso(processo, andamento) !== "nenhum") {
+      // O servidor que o atualizador subiu ainda está nascendo: desfazer agora tiraria a pasta de baixo dele.
+      let respondeu = false;
+      await esperarAte(
+        async () => {
+          // Quem ele é já foi visto: a cada volta basta o pid existir, sem abrir um powershell por volta no Windows.
+          if (!efeitos.existe(processo.pid)) return true;
+          respondeu = (await efeitos.versaoNoAr(dirDados, processo.pid)) === para;
+          return respondeu;
+        },
+        prazos.servidorMs,
+        prazos.intervaloMs,
+      );
+      if (respondeu) {
+        gravar({ fase: "concluido", processo: null });
+        return { tipo: "concluida", de, para };
+      }
+    }
+    const semProcesso = await ops.semProcesso(processo, andamento);
+    if (semProcesso === "incerto") return { tipo: "em_andamento" };
+    if (semProcesso === "preso" && processo !== null) return { tipo: "processo_preso", papel: processo.papel, pid: processo.pid };
+    if (!(await esperarAte(ops.bancosLivres, prazos.soltarBancoMs, prazos.intervaloMs))) return { tipo: "banco_em_uso" };
+    if (andamento.fase !== "desfazer" || processo !== null) gravar({ fase: "desfazer", falha, processo: null });
     await ops.desfazer(andamento);
     gravar({ fase: "desfeito", falha });
     return { tipo: "desfeita", de, para };
@@ -724,7 +883,11 @@ export async function recuperar(
   }
 }
 
-/** `recomposta`: alguma entrada voltou de lugar. `nada`: a pasta já estava inteira. */
+/**
+ * `recomposta`: alguma entrada voltou de lugar. `nada`: a pasta já estava inteira. `em_andamento`:
+ * um atualizador vivo segura a trava, ou o processo que ele subiu segue vivo ou não deu para
+ * descartar, e nada foi movido.
+ */
 export type Recomposicao = { readonly tipo: "nada" } | { readonly tipo: "em_andamento" } | { readonly tipo: "recomposta" } | { readonly tipo: "falhou"; readonly detalhe: string };
 
 /**
@@ -747,7 +910,9 @@ export async function recomporArvore(raizDoRepo: string, efeitos: Efeitos = efei
   try {
     const andamento = rasgada();
     if (andamento === null) return { tipo: "nada" };
-    if (andamento.fase !== "desfazer") regravar(caminhos.andamento, andamento, { fase: "desfazer", falha: falhaDaQueda(andamento) }, efeitos);
+    // Com o processo ainda anotado, a volta não moveu nada: a pasta está inteira, e encerrá-lo é do `recuperar`.
+    if (ops.estadoDoProcesso(andamento.processo, andamento) !== "nenhum") return { tipo: "em_andamento" };
+    if (andamento.fase !== "desfazer") regravar(caminhos.andamento, andamento, { fase: "desfazer", falha: falhaDaQueda(andamento), processo: null }, efeitos);
     return (await ops.desfazerTrocas(andamento)) > 0 ? { tipo: "recomposta" } : { tipo: "nada" };
   } catch (erro) {
     return { tipo: "falhou", detalhe: mensagem(erro) };
@@ -758,6 +923,42 @@ export async function recomporArvore(raizDoRepo: string, efeitos: Efeitos = efei
 
 const PRAZO_DA_SONDA_MS = 3_000;
 const PRAZO_DO_ENCERRAMENTO_MS = 5_000;
+const PRAZO_DA_HORA_MS = 10_000;
+
+function existe(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (erro) {
+    // EPERM: o processo existe e é de outro usuário.
+    return (erro as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/** A mesma leitura de `horaDeInicio`, de `nucleo/processos`: `testes/conferencias/atualizador.test.ts` cobra que as duas concordem. */
+function inicioDoProcesso(pid: number): string | null {
+  if (!Number.isSafeInteger(pid) || pid <= 0) return null;
+  if (process.platform === "linux") {
+    try {
+      // O nome do processo vem entre parênteses e pode ter espaço; o campo 22, starttime, conta depois dele.
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
+      return stat.slice(stat.lastIndexOf(")") + 2).split(" ")[19] ?? null;
+    } catch {
+      return null;
+    }
+  }
+  const [programa, argumentos, env] =
+    process.platform === "win32"
+      ? (["powershell.exe", ["-NoProfile", "-NonInteractive", "-Command", `(Get-Process -Id ${pid}).StartTime.ToUniversalTime().Ticks`], process.env] as const)
+      : (["ps", ["-o", "lstart=", "-p", String(pid)], { PATH: process.env.PATH ?? "/bin:/usr/bin", LC_ALL: "C" }] as const);
+  try {
+    const feito = spawnSync(programa, argumentos, { env, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], timeout: PRAZO_DA_HORA_MS, windowsHide: true });
+    const texto = (feito.stdout ?? "").trim();
+    return feito.status === 0 && texto !== "" ? texto : null;
+  } catch {
+    return null;
+  }
+}
 
 export function efeitosReais(): Efeitos {
   const ambienteDosFilhos = (dirDados: string) => ({ ...process.env, SECRETARIA_DADOS: dirDados });
@@ -772,24 +973,60 @@ export function efeitosReais(): Efeitos {
       sqlite?.close();
       return sqlite !== null;
     },
-    async instalar(raizDoRepo, dirDados, prazoMs) {
-      const feito = spawnSync(process.execPath, [cli(raizDoRepo), "instalar", "--json"], {
+    iniciarInstalar(raizDoRepo, dirDados) {
+      const saida = caminhosDoAtualizador(raizDoRepo, dirDados).saidaDoInstalar;
+      mkdirSync(path.dirname(saida), { recursive: true });
+      // A saída vai para um arquivo: um processo que o `instalar` subiu e que herdasse um pipe seguraria a leitura aberta.
+      const arquivo = openSync(saida, "w", 0o600);
+      const filho = spawn(process.execPath, [cli(raizDoRepo), "instalar", "--json"], {
         cwd: raizDoRepo,
         env: ambienteDosFilhos(dirDados),
-        encoding: "utf8",
-        timeout: prazoMs,
+        // Fora do Windows, o `instalar` nasce líder de um grupo: é pelo grupo que `encerrarArvore` alcança o que ele subiu.
+        detached: process.platform !== "win32",
+        stdio: ["ignore", arquivo, arquivo],
         windowsHide: true,
       });
-      const ultima = (feito.stdout ?? "").trimEnd().split("\n").at(-1) ?? "";
-      let envelope: unknown = null;
-      try {
-        envelope = JSON.parse(ultima);
-      } catch {
-        envelope = null;
+      closeSync(arquivo);
+      const fim = new Promise<Instalado>((resolver) => {
+        filho.on("error", (erro) => resolver({ ok: false, detalhe: `o instalar não começou. ${mensagem(erro)}` }));
+        filho.on("exit", (codigo) => {
+          let escrito = "";
+          try {
+            escrito = readFileSync(saida, "utf8").trim();
+          } catch {
+            escrito = "";
+          }
+          let envelope: unknown = null;
+          try {
+            envelope = JSON.parse(escrito.split("\n").at(-1) ?? "");
+          } catch {
+            envelope = null;
+          }
+          if (codigo === 0 && ehObjeto(envelope) && envelope.ok === true) return resolver({ ok: true });
+          const erro = ehObjeto(envelope) && ehObjeto(envelope.erro) ? `${String(envelope.erro.codigo)}: ${String(envelope.erro.mensagem)}` : escrito.slice(-500);
+          resolver({ ok: false, detalhe: `o instalar saiu com ${codigo ?? "um sinal"}. ${erro}`.trim() });
+        });
+      });
+      return { pid: filho.pid, fim };
+    },
+    inicioDoProcesso,
+    existe,
+    async encerrarArvore(pid) {
+      // `kill` com 0, -1 ou 1 alcança o grupo de quem chama, todos os processos do usuário ou o init.
+      if (!Number.isSafeInteger(pid) || pid <= 1 || pid === process.pid) return false;
+      if (process.platform === "win32") {
+        spawnSync("taskkill", ["/PID", String(pid), "/T", "/F"], { stdio: "ignore", timeout: PRAZO_DO_ENCERRAMENTO_MS, windowsHide: true });
+      } else {
+        for (const alvo of [-pid, pid]) {
+          try {
+            process.kill(alvo, "SIGKILL");
+            break;
+          } catch {
+            // Sem grupo com esse número, o sinal vai só para o processo.
+          }
+        }
       }
-      if (feito.status === 0 && ehObjeto(envelope) && envelope.ok === true) return { ok: true };
-      const erro = ehObjeto(envelope) && ehObjeto(envelope.erro) ? `${String(envelope.erro.codigo)}: ${String(envelope.erro.mensagem)}` : (feito.stderr ?? "").trim().slice(-500);
-      return { ok: false, detalhe: `o instalar saiu com ${feito.status ?? "limite de tempo"}. ${erro}`.trim() };
+      return esperarAte(() => !existe(pid), PRAZO_DO_ENCERRAMENTO_MS, 25);
     },
     subirServidor(raizDoRepo, dirDados) {
       const saida = caminhosDoAtualizador(raizDoRepo, dirDados).saidaDoServidor;

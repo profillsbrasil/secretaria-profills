@@ -44,6 +44,7 @@ import { abrirNoNavegador } from "./navegador";
 
 const PRAZO_PADRAO_MS = 180_000;
 const PARADA_MS = 15_000;
+const LOCK_DO_BANCO_MS = 10_000;
 /** A rodada do servidor tem prazo de 2 min; o CLI espera um pouco mais para receber o resultado dela. */
 const PRAZO_DA_SINCRONIZACAO_MS = 150_000;
 /** A leitura do CRM no servidor para em 60 s; o CLI espera um pouco mais para receber o relatório. */
@@ -209,6 +210,10 @@ async function forcarParada(ambiente: Ambiente): Promise<Resultado<{ parado: tru
     }
     rmSync(caminhos.pid, { force: true });
     rmSync(caminhos.servidor, { force: true });
+    // O Windows solta o lock do banco depois que o processo morto some: `parado` só vale com o banco livre.
+    if (!(await esperarAte(() => !bancoEmUso(caminhos.banco) && !bancoEmUso(caminhos.bancoDoVendedor), LOCK_DO_BANCO_MS))) {
+      return falha("banco_preso_por_outro", `O servidor (pid ${anotado.pid}) foi encerrado, e o banco seguiu em uso por ${LOCK_DO_BANCO_MS / 1000} s.`);
+    }
     return ok({ parado: true, forcado: true });
   }
   rmSync(caminhos.pid, { force: true });
@@ -240,6 +245,10 @@ async function terminarAtualizacaoInterrompida(
   const volta = await recuperar({ raizDoRepo: ctx.raizDoRepo, dirDados: ambiente.dirDados, versaoNoAr });
   if (volta.tipo === "em_andamento") return falha("atualizacao_em_andamento");
   if (volta.tipo === "banco_em_uso") return falha("servidor_preso", "Uma atualização parou no meio, e um processo ainda segura o banco da Secretária.");
+  if (volta.tipo === "processo_preso") {
+    const oQue = volta.papel === "instalar" ? "que instalava a versão nova" : "do servidor da versão nova";
+    return falha("banco_preso_por_outro", `Uma atualização parou no meio, e o processo ${oQue} (pid ${volta.pid}) não encerrou. A pasta e o banco ficaram como estavam.`);
+  }
   if (volta.tipo === "servidor_no_meio") return falha("servidor_preso", `Uma atualização parou no meio, e um servidor da versão ${volta.versaoNoAr} está no ar sobre a pasta.`);
   if (volta.tipo === "falhou") return falha("interno", `Uma atualização parou no meio e não deu para voltar à versão anterior: ${volta.detalhe}`);
   return ok(volta.tipo === "desfeita" ? { de: volta.de, para: volta.para } : null);

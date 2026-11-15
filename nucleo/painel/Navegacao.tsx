@@ -17,7 +17,7 @@ import {
   X,
   type LucideIcon,
 } from "lucide-react";
-import { useId, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -25,6 +25,7 @@ import { cn } from "cn";
 import type { QuemUsa } from "../dominio";
 import { AvisoNoCartao, LinhaDaVersao, PontoDeNovidade, SimboloDaAtualizacao, type ControleDaAtualizacao } from "./AvisoDaAtualizacao";
 import type { Tom } from "./descrever";
+import { vigiarItemAtivo } from "./item-ativo";
 import { rotulosDeQuemUsa, type ConexoesDaLateral, type LinhaDoMenu, type ModeloDoMenu } from "./lateral";
 import type { IdDoBloco } from "./meu-dia";
 import { hashDaRota } from "./rota";
@@ -309,6 +310,9 @@ function AtualizacaoRecolhida({ girando, ponto, rotulo, abrir }: { girando: bool
 export function Lateral({ modelo, quem, atualizacao }: { modelo: ModeloDoMenu; quem: QuemNoCartao; atualizacao: ControleDaAtualizacao }) {
   const [recolhida, alternar] = useLembrado(CHAVE_RECOLHIDA);
   const rotuloDoBotao = recolhida ? "Abrir a lateral" : "Recolher a lateral";
+  const areaDoMenu = useRef<HTMLDivElement>(null);
+  const ativo = [modelo.meuDia, ...modelo.blocos, modelo.tarefas, modelo.conexoes].find((linha) => linha.atual)?.nome ?? null;
+  useEffect(() => (areaDoMenu.current === null ? undefined : vigiarItemAtivo(areaDoMenu.current)), [ativo]);
   return (
     <nav
       aria-label="Telas"
@@ -323,7 +327,7 @@ export function Lateral({ modelo, quem, atualizacao }: { modelo: ModeloDoMenu; q
           </Button>
         </Dica>
       </div>
-      <div className="-mr-px flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto [scrollbar-width:thin]">
+      <div ref={areaDoMenu} className="-mr-px flex min-h-0 flex-1 flex-col gap-0.5 overflow-x-hidden overflow-y-auto [scrollbar-width:thin]">
         <ListaDoMenu modelo={modelo} recolhida={recolhida} naGaveta={false} />
       </div>
       {modelo.cartao !== null && !recolhida && (

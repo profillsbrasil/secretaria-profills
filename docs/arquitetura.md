@@ -917,12 +917,13 @@ O boot segue esta ordem: `servidor.pid`, banco, cofre, painel, porta, conectores
 | O programa sai com 0, ou segue vivo depois de 2 s, sem abrir janela | `abrir` não percebe e responde que abriu, com a frase de saída | `abrir` no terminal do vendedor |
 | Um processo segura o banco e o `servidor.pid` não o confirma como servidor | `parar --forcar` responde `banco_preso_por_outro` e não mata ninguém | reiniciar o computador |
 | Outro programa escuta a porta preferida, como a Secretária de outra pasta de dados | a porta abre com `reusePort: false` (o Bun 1.4.4 divide a porta sem essa opção), o servidor pega a seguinte livre, até 9 adiante, e grava a dele no `servidor.json` da pasta | nenhuma |
-| Uma atualização parou no meio (queda de luz, atualizador encerrado) | `abrir` desfaz a troca, devolve os bancos e sobe a versão antiga; a resposta traz `atualizacaoDesfeita` com as duas versões | nenhuma |
+| Uma atualização parou no meio (queda de luz, atualizador encerrado) | `abrir` encerra o `instalar` da versão nova que tiver sobrado, desfaz a troca, devolve os bancos e sobe a versão antiga; a resposta traz `atualizacaoDesfeita` com as duas versões. Se o servidor da versão nova ainda estava nascendo, `abrir` espera por ele até 60 s e fica com a versão nova | nenhuma |
+| Uma atualização parou no meio e o processo dela não encerra | `abrir` responde `banco_preso_por_outro`, com o pid na mensagem, e não mexe em nada | reiniciar o computador e `abrir` de novo |
 | O atualizador está rodando | `abrir` responde `atualizacao_em_andamento` e não mexe em nada | esperar um minuto e `abrir` de novo |
 | Dois `abrir` na mesma pasta ao mesmo tempo | o que perde espera o servidor do outro e responde `subiu: false`: `subiu` vem do pid do `servidor.json`, igual ao do filho que o `abrir` subiu | nenhuma |
 | O `ambiente.json` tem campo desconhecido, valor que não serve ou JSON quebrado, ou não se lê | todo comando responde `ambiente_invalido`, com o campo e os campos que existem na mensagem | tirar ou corrigir o campo |
 
-`servidor.pid` guarda o pid e a hora de início do servidor, lida do sistema: `/proc/<pid>/stat` no Linux, `ps -o lstart=` no macOS, `Get-Process` no Windows. O sistema reaproveita pid, então só pid e hora juntos identificam o servidor. O boot grava o arquivo antes de abrir o banco e só preserva um pid vivo cuja hora bate com a anotada ou não deu para ler. `parar --forcar` só encerra o processo anotado se o banco estiver em uso e pid e hora baterem; sem banco em uso, apaga os arquivos velhos e não mata ninguém. Depois do boot, toda chamada ao cofre continua com prazo, e o conector trata a falha como fonte de verdade fora do ar.
+`servidor.pid` guarda o pid e a hora de início do servidor, lida do sistema: `/proc/<pid>/stat` no Linux, `ps -o lstart=` no macOS, `Get-Process` no Windows. O sistema reaproveita pid, então só pid e hora juntos identificam o servidor. O boot grava o arquivo antes de abrir o banco e só preserva um pid vivo cuja hora bate com a anotada ou não deu para ler. `parar --forcar` só encerra o processo anotado se o banco estiver em uso e pid e hora baterem; sem banco em uso, apaga os arquivos velhos e não mata ninguém. Depois de encerrar, ele espera `secretaria.db` e `meu.db` ficarem livres, até 10 s, antes de responder `parado`: o Windows solta o lock depois que o processo morto some. Se o banco segue em uso, responde `banco_preso_por_outro`. Depois do boot, toda chamada ao cofre continua com prazo, e o conector trata a falha como fonte de verdade fora do ar.
 
 ## Núcleo e `meu/`
 
@@ -1221,6 +1222,8 @@ Ele é um arquivo só e importa só do Bun e do `node:`. As pastas do núcleo mu
 
 O script `secretaria` do `package.json` é `bun entrada.ts`. O `entrada.ts` fica na raiz, fora das pastas trocadas, e só importa do Bun e do `node:`: uma queda entre os dois renames de `nucleo/` ou de `node_modules/` deixa a pasta sem eles, e o CLI não carrega. Antes de carregar o CLI, o `entrada.ts` roda `recomporArvore` da cópia do atualizador em `.atualizacao/atualizador.ts`, que o passo `copiar` grava antes da troca. Com o andamento em `trocar` ou `desfazer` e a trava livre, ela põe de volta cada entrada fora do lugar e deixa o andamento em `desfazer`. Devolver os bancos e gravar o fim é do `recuperar`, no `abrir`.
 
+Quando a `recomporArvore` não recompõe (`em_andamento`, com a trava presa ou o processo da atualização vivo, ou `falhou`) e o CLI não carrega, o `entrada.ts` responde no formato do CLI, sem o erro cru de módulo: com `--json`, uma linha com o envelope; sem ele, mensagem e ação em stderr; saída 1. Em `em_andamento` o erro é `atualizacao_em_andamento`, com os textos de `nucleo/dominio/erros.ts` repetidos no arquivo, que não pode importar o núcleo. Em `falhou` é `interno`, com o detalhe e a ação de rodar `abrir` de novo e, se repetir, reiniciar o computador. Se o CLI carrega, ele segue: o `abrir` é quem decide.
+
 Quando a `recomporArvore` move alguma coisa, o `entrada.ts` roda o CLI num processo novo. O Bun 1.4.4 guarda o que viu da pasta quando o processo começa: um `node_modules/` que voltou depois não é achado a partir de `nucleo/cli/` no mesmo processo (medido, `Cannot find package`). `testes/conferencias/atualizador.test.ts` cobra que o `entrada.ts` só importe do Bun e do `node:` e que o script aponte para ele.
 
 Pasta com `.git` nunca é atualizada: o atualizador sai com `recusada` antes de gravar qualquer arquivo, e a volta do `abrir` também não a toca.
@@ -1231,7 +1234,8 @@ Pasta com `.git` nunca é atualizada: o atualizador sai com `recusada` antes de 
 |---|---|
 | `<repo>/.atualizacao/nova/` | a versão nova extraída, com `node_modules/` |
 | `<repo>/.atualizacao/anterior/` | o que saiu na troca. Depois de uma atualização que deu certo, fica o núcleo antigo, sem `node_modules/`, até a atualização seguinte |
-| `<repo>/.atualizacao/andamento.json` | em que fase a atualização está, o plano da troca e o motivo da falha |
+| `<repo>/.atualizacao/andamento.json` | em que fase a atualização está, o plano da troca, o motivo da falha e o processo que o atualizador subiu e ainda pode estar vivo |
+| `<repo>/.atualizacao/instalar-saida.log` | o que o `instalar` da versão nova escreveu, da última vez que o atualizador o rodou |
 | `<repo>/.atualizacao/atualizador.ts` | cópia do `main.ts` que escreveu o andamento, para o `entrada.ts` recompor a pasta |
 | `<repo>/.atualizacao/trava.db` | SQLite vazio que o atualizador e a volta seguram enquanto trabalham. O sistema solta o lock quando o processo morre |
 | `<dados>/atualizacoes/<versão>/antes/` | cópia de `secretaria.db`, `meu.db` (com `-wal` e `-shm`, se existirem), do `meu/` e, se `ferramentas.lock.json` mudou, do binário do wacli |
@@ -1248,15 +1252,38 @@ Pasta com `.git` nunca é atualizada: o atualizador sai com `recusada` antes de 
 | `preparar` | confere que `nova/` tem `package.json` e lista da mesma versão, que ela é maior que a instalada, que tem `node_modules/` e o CLI, e que todo caminho da lista está na lista de troca; monta o plano; conta os arquivos do núcleo mudados na máquina; apaga a `anterior/` da atualização passada | volta |
 | `copiar` | guarda o próprio `main.ts` em `.atualizacao/atualizador.ts`, grava as cópias em `antes.parcial/` e só então renomeia para `antes/` | volta |
 | `trocar` | para cada entrada do plano, leva a antiga para `anterior/` e traz a nova de `nova/` (veja A troca) | volta |
-| `instalar` | roda `instalar --json` do CLI que está na pasta, que já é o da versão nova, por até 15 min | volta |
-| `subir` | sobe `servidor --json` destacado e espera `/api/info` responder a versão nova pelo pid que ele subiu, até 60 s | encerra esse servidor e volta |
-| `desfazer` | a volta: espera o banco livre, devolve cada entrada na ordem inversa (a nova volta para `nova/`, a antiga sai de `anterior/`) e, se o `instalar` chegou a rodar, apaga os bancos e põe as cópias de `antes/` no lugar, com o wacli | o andamento fica em `desfazer`, e o próximo `abrir` termina |
+| `instalar` | sobe `instalar --json` do CLI que está na pasta, que já é o da versão nova, anota o processo no andamento e espera ele sair, por até 15 min | encerra o `instalar` com os processos que ele subiu e volta |
+| `subir` | sobe `servidor --json` destacado, anota o processo no andamento e espera `/api/info` responder a versão nova pelo pid que ele subiu, até 60 s | encerra esse servidor e volta |
+| `desfazer` | a volta: encerra o processo anotado que ainda viver, espera o banco livre, devolve cada entrada na ordem inversa (a nova volta para `nova/`, a antiga sai de `anterior/`) e, se o `instalar` chegou a rodar, apaga os bancos e põe as cópias de `antes/` no lugar, com o wacli | o andamento fica em `desfazer`, e o próximo `abrir` termina |
 | `concluido` | fim: a versão nova está no ar | |
 | `desfeito` | fim: a versão antiga está inteira, com `falha: { passo, motivo, detalhe }` | |
 
 Depois da volta, o atualizador sobe o servidor antigo e espera ele responder a versão antiga. Os motivos são `banco_em_uso`, `versao_nova_invalida`, `copia_falhou`, `troca_falhou`, `instalar_falhou`, `servidor_nao_subiu` e `interrompida`.
 
 A volta devolve os bancos porque o código antigo recusa banco com migração que ele não conhece. Entre a cópia e a volta só o servidor da versão nova, que não chegou a responder, pôde escrever.
+
+### O processo anotado
+
+O `instalar` e o servidor da versão nova são processos à parte, e seguem vivos se o atualizador morrer. Por isso o andamento leva `processo: { papel, pid, inicio }`, com `papel` `instalar` ou `servidor`, enquanto um deles pode estar vivo, e `null` no resto do tempo. `inicio` é a hora de início que o sistema dá ao pid, lida como em `servidor.pid` (seção "Vida do servidor"): o sistema reaproveita pid, e só os dois juntos dizem que o processo é o mesmo.
+
+A volta pergunta quem tem o pid hoje (`estadoDoProcesso`), e só encerra o processo `nosso`:
+
+| O que o sistema diz do pid | Estado |
+|---|---|
+| não existe | `nenhum` |
+| a hora de agora bate com o `inicio` anotado | `nosso` |
+| a hora de agora é outra | `nenhum`: o pid é de outro processo |
+| `inicio` é `null`, e o processo do pid nasceu entre `iniciadoEm` e `atualizadoEm`, com 2 s de folga | `nosso` |
+| `inicio` é `null`, e o processo nasceu fora dessa janela | `nenhum`: é o caso do pid reaproveitado depois de reiniciar o computador |
+| a hora não dá para ler (powershell barrado, `ps` ausente, processo de outro usuário no Windows) | `incerto` até o prazo do papel contado de `atualizadoEm` (15 min do `instalar`, 60 s do servidor), `nenhum` depois |
+
+Com o `incerto`, ninguém é encerrado: o `abrir` responde `atualizacao_em_andamento`, e a pasta fica como está. Passado o prazo, o atualizador já teria encerrado o processo dele, e a volta segue sem encerrar ninguém, com o lock do banco como última guarda. O `atualizadoEm` só é regravado com o processo anotado enquanto o atualizador o segura, e aí o sistema não dá o pid a outro: a janela não alcança um processo alheio. `msDoInicio` lê a hora de cada sistema em milissegundos: no Linux, `btime` de `/proc/stat` mais o `starttime` em tiques de 1/100 s; no macOS, o `lstart`; no Windows, os ticks UTC.
+
+O pid é gravado logo depois de o processo nascer, com `inicio: null`, e regravado com a hora: no Windows, ler a hora leva perto de um segundo. Se o atualizador morre nesse segundo, a janela de nascimento acima confirma o processo. O campo é o único acréscimo ao `andamento.json`. O `v` segue 1: a versão que não conhece o campo o ignora, e o arquivo sem o campo é lido como `processo: null`.
+
+A volta só renomeia pasta e devolve banco sem o processo anotado vivo. O atualizador vivo decide pelo processo que ele ainda segura, não pelo pid: o `instalar` que saiu sozinho sai do andamento sem ser encerrado, e o que passou do prazo é encerrado mesmo sem a hora lida. A volta do `abrir` encerra o processo `nosso` à força, com os processos que ele subiu: fora do Windows o `instalar` e o servidor nascem líderes de um grupo, e o sinal vai para o grupo; no Windows é `taskkill /T /F`. O prazo do `instalar` encerra do mesmo jeito. Encerrar o `instalar` no meio é seguro porque a volta devolve os bancos e o wacli de `antes/`. Se o processo não encerra, a volta para sem mexer em nada, com o andamento em `desfazer` e o processo ainda anotado.
+
+A saída do `instalar` vai para `instalar-saida.log`, e não para um pipe: um processo que ele subisse e que herdasse o pipe seguraria a leitura aberta depois de ele sair.
 
 ### A troca
 
@@ -1290,7 +1317,11 @@ Arquivo do núcleo mudado na máquina: antes da troca, o sha256 de cada arquivo 
 | um servidor responde a versão nova e a fase é `subir` | grava `concluido` e segue |
 | um servidor responde e a fase é anterior à troca | grava `desfeito`, sem mexer na pasta, e segue com esse servidor |
 | um servidor responde em qualquer outra fase | responde `servidor_preso`, sem mexer em nada: a volta só roda com o servidor parado |
-| ninguém responde e um dos bancos está em uso | responde `servidor_preso` |
+| ninguém responde, a fase é `subir` e o servidor anotado vive | espera ele responder a versão nova, até 60 s, e grava `concluido`; se ele morre ou o prazo acaba, encerra o que sobrou e segue para a volta |
+| ninguém responde e o `instalar` anotado vive | encerra o `instalar`, com os processos que ele subiu, e segue para a volta |
+| o pid anotado existe e não dá para confirmar que é o processo da atualização | responde `atualizacao_em_andamento`, sem encerrar nem mexer em nada, até o prazo do papel; depois segue para a volta |
+| o processo anotado vive e não encerra | responde `banco_preso_por_outro`, com o papel e o pid na mensagem, sem mexer em nada: a saída é reiniciar o computador |
+| ninguém responde e um dos bancos segue em uso por 10 s | responde `servidor_preso`. A espera existe porque o Windows solta o lock depois que o processo morto some |
 | ninguém responde e o banco está livre | desfaz, grava `desfeito` com o motivo `interrompida` (ou o da falha que já estava anotada) e sobe o servidor, que é o da versão antiga |
 | o `andamento.json` não está num formato que esta versão lê | responde `interno`, sem mexer na pasta |
 
@@ -1299,7 +1330,9 @@ O atualizador também não passa por cima: com um andamento que não chegou ao f
 Limites conhecidos:
 
 - Nas fases `instalar` e `subir`, a pasta está inteira na versão nova, e quem roda a volta é o `abrir` dela. Depois do `recuperar`, a pasta é a antiga: um import dinâmico que esse `abrir` fizesse depois resolveria contra o código antigo. Hoje ele não faz nenhum. Antiga e nova precisam ler o mesmo `andamento.json`: mudança de formato sobe o `v`, e a versão que não lê o `v` não desfaz.
-- Com o atualizador vivo entre os dois renames de uma pasta, um `bun secretaria` qualquer acha a trava presa, não recompõe nada e pode não carregar o CLI. A janela dura um rename, ou as novas tentativas do Windows, até 3 s.
+- Com o atualizador vivo entre os dois renames de uma pasta, um `bun secretaria` qualquer acha a trava presa, não recompõe nada e pode não carregar o CLI: a resposta é o `atualizacao_em_andamento` do `entrada.ts`. A janela dura um rename, ou as novas tentativas do Windows, até 3 s.
+- O atualizador que morre entre subir o processo e gravar o pid dele deixa um processo vivo que o andamento não cita. Não há espera entre as duas coisas. Se morre antes de regravar a hora de início, o processo fica anotado só pelo pid, e a volta o confirma pela hora em que ele nasceu.
+- O que o `instalar` subiu e sobrou depois de ele sair sozinho não é encerrado: a volta só alcança os filhos de um `instalar` ainda vivo.
 - Se o atualizador morre depois de o servidor novo responder e antes de gravar `concluido`, o fim só é gravado no `abrir` seguinte com esse servidor no ar. Um `abrir` com o servidor parado desfaria a atualização e devolveria os bancos de antes.
 - `<dados>/atualizacoes/<versão>/antes/` não é apagada: fica uma cópia dos bancos por versão.
 
@@ -1308,6 +1341,8 @@ Limites conhecidos:
 `testes/falsos/instalacao-minima.ts` monta, numa pasta temporária, a 0.1.0 instalada pelo pacote, a 0.2.0 extraída em `.atualizacao/nova/` com uma migração a mais, um `meu/` e uma pasta de dados com `secretaria.db` e `meu.db`. O `instalar` e o `servidor` dela são `testes/falsos/secretaria-minima.ts`: abrem o banco como único dono e aplicam as migrações com o `migrar` de verdade, sem painel, cofre nem wacli. Nenhum teste roda o `instalar` real, que baixaria o wacli.
 
 `nucleo/atualizador/main.test.ts` roda a máquina dentro do processo do teste, com falha injetada em cada passo pelos `Efeitos`. `testes/fluxos/atualizador.test.ts` roda o `main.ts` que veio dentro da 0.2.0 como processo, mata o atualizador em cada fase e logo depois do primeiro rename de `node_modules`, `nucleo`, `package.json` e `.claude/settings.json` na troca, e de `nucleo` na volta (`testes/falsos/atualizador-que-cai.ts`), e roda `bun run secretaria abrir` como processo na pasta da instalação. Esse comando passa pelo `package.json` e pelo `entrada.ts` que estiverem nela; o CLI dela só carrega com o `node_modules/` no lugar, e o `abrir` que ele roda é o de verdade. Em todos os casos de falha e de queda, a pasta, a `nova/` e os dois bancos ficam iguais ao que eram, arquivo por arquivo, e o servidor responde a 0.1.0.
+
+O mesmo arquivo cobre o processo que sobra. Arquivos na raiz da instalação mínima param o `instalar` (`instalar-espera`, antes de abrir o banco ou com ele na mão) e o servidor (`servidor-espera`, antes de abrir o banco) num ponto, e eles anunciam o pid na pasta de dados; nenhum teste espera por tempo. O teste mata o atualizador com o `instalar` parado e roda o `abrir`, que o encerra antes de voltar. Com o servidor da 0.2.0 parado antes do banco, o `recuperar` espera, o servidor segue quando a primeira sonda chega, e o fim gravado é `concluido`; com o prazo curto, o servidor é encerrado antes da volta. `encerrarArvore` encerra o `instalar` e o processo que ele subiu. Com `node_modules/` fora do lugar e outro processo segurando a trava, `bun run secretaria abrir` responde o envelope de `atualizacao_em_andamento`, com saída 1. `testes/falsos/banco-que-solta-tarde.ts` segura os bancos por 1 s depois de o processo anunciado morrer: o `abrir` espera e termina a volta, e o `parar --forcar` só responde `parado` com os bancos livres (`testes/cli/cli.test.ts`).
 
 Não verificado: o rename de pasta no Windows com o servidor real recém-parado e o `bun-plugin-tailwind` carregado, o `main.ts` rodando de dentro de `nova/` no Windows, e o rename de arquivo por cima de outro no Windows. O CI do Windows roda o fluxo acima com a instalação mínima.
 

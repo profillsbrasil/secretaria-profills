@@ -3,6 +3,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, watch, writeFi
 import { release, tmpdir } from "node:os";
 import { join } from "node:path";
 import { PastaDeDadosInvalida, caminhosDosDados, resolverAmbiente } from "../../nucleo/ambiente";
+import { bancoEmUso } from "../../nucleo/banco/abrir";
 import { detalheComoDado, paraOLeitor, textoExterno, type ErroOperacao, type EstadoAgente } from "../../nucleo/dominio";
 import { iniciarServidor, lerArquivoDoServidor, lerPidDoServidor, type ServidorRodando } from "../../nucleo/servidor";
 import { anunciarPid } from "../../nucleo/servidor/arquivo";
@@ -523,6 +524,21 @@ describe("CLI com o servidor preso", () => {
     const aberto = await rodar(dir, ["abrir", "--sem-navegador", "--json"]);
     expect(aberto.envelope?.dados).toMatchObject({ subiu: true });
     expect((await rodar(dir, ["parar", "--json"])).codigo).toBe(0);
+  });
+
+  test("parar --forcar só responde parado com o banco livre, também quando o lock sai depois do processo, como no Windows", async () => {
+    pasta = prepararPasta();
+    const dir = pasta.bancada.dirDados;
+    const caminhos = caminhosDosDados(pasta.ambiente());
+    const segurador = Bun.spawn([process.execPath, join(REPO, "testes", "falsos", "banco-que-solta-tarde.ts"), dir, "1000"], { stdin: "ignore", stdout: "pipe", stderr: "inherit" });
+    presos.push(segurador);
+    const { value } = await segurador.stdout.getReader().read();
+    expect(new TextDecoder().decode(value)).toBe("pronto\n");
+
+    const forcado = await rodar(dir, ["parar", "--forcar", "--json"]);
+
+    expect(forcado.envelope).toEqual({ v: 1, ok: true, dados: { parado: true, forcado: true } });
+    expect([bancoEmUso(caminhos.banco), bancoEmUso(caminhos.bancoDoVendedor)]).toEqual([false, false]);
   });
 
   test("parar --forcar não mata o pid anotado quando ninguém segura o banco", async () => {
