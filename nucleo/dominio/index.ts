@@ -19,3 +19,4 @@ export * from "./email-corpo";
 export * from "./email-conversa";
 export * from "./relatorio";
 export * from "./sincronizacao-automatica";
+export * from "./quem-usa";
