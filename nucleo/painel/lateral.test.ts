@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Dia, EstadoPainel, Instante, RetratoDosConectores } from "../dominio";
 import { montarMeuDia, type MeuDia, type Tarefa } from "../tarefas";
 import { montarCena } from "./dev/cenas";
-import { conexoesDaLateral, listaLembrada, modeloDoMenu } from "./lateral";
+import { conexoesDaLateral, listaLembrada, modeloDoMenu, rotulosDeQuemUsa } from "./lateral";
 import { IDS_DOS_BLOCOS } from "./meu-dia";
 import { hashDaRota } from "./rota";
 
@@ -114,5 +114,16 @@ describe("voltar ao Meu dia", () => {
 
   test("sem bloco visto, o Meu dia abre sem bloco, e a tela escolhe", () => {
     expect(hashDaRota(modeloDoMenu({ tela: "tarefas" }, null, null, listaLembrada(null, { tela: "meu-dia" }), agora).meuDia.destino)).toBe("#/meu-dia");
+  });
+});
+
+describe("quem usa, no cartão do pé", () => {
+  test("sem nome, o cartão pede o nome", () => {
+    expect(rotulosDeQuemUsa(null)).toMatchObject({ rotulo: "Diga seu nome", subtitulo: "Profills" });
+  });
+
+  test("o subtítulo diz de onde o nome veio", () => {
+    expect(rotulosDeQuemUsa({ nome: "Marina", iniciais: "MC", origem: "crm" })).toMatchObject({ rotulo: "Marina", subtitulo: "Profills · nome do CRM" });
+    expect(rotulosDeQuemUsa({ nome: "Mari", iniciais: "M", origem: "vendedor" })).toMatchObject({ rotulo: "Mari", subtitulo: "Profills · só neste computador" });
   });
 });

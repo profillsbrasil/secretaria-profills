@@ -12,6 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   PlugZap,
+  UserRound,
   UserX,
   X,
   type LucideIcon,
@@ -21,8 +22,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { cn } from "cn";
+import type { QuemUsa } from "../dominio";
 import type { Tom } from "./descrever";
-import type { ConexoesDaLateral, LinhaDoMenu, ModeloDoMenu } from "./lateral";
+import { rotulosDeQuemUsa, type ConexoesDaLateral, type LinhaDoMenu, type ModeloDoMenu } from "./lateral";
 import type { IdDoBloco } from "./meu-dia";
 import { hashDaRota } from "./rota";
 
@@ -89,11 +91,57 @@ function Dica({ texto, ativa, children }: { texto: string; ativa: boolean; child
   );
 }
 
-function LugarDoLogo() {
+export function LugarDoLogo({ className }: { className?: string }) {
   return (
-    <span aria-hidden className="grid size-7 shrink-0 place-items-center rounded-[7px] border border-dashed border-input text-[7px] font-semibold tracking-wide text-fraco uppercase">
+    <span aria-hidden className={cn("grid size-7 shrink-0 place-items-center rounded-[7px] border border-dashed border-input text-[7px] font-semibold tracking-wide text-fraco uppercase", className)}>
       logo
     </span>
+  );
+}
+
+/** Quem está usando, no cartão do pé. `null` antes da primeira leitura: a linha não aparece, para não piscar "Diga seu nome". */
+export type QuemNoCartao = { readonly quem: QuemUsa | null; abrir(): void } | null;
+
+/** As iniciais num círculo; sem nome, o contorno tracejado com a pessoa. */
+export function Avatar({ quem, className }: { quem: QuemUsa | null; className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold transition-colors",
+        quem === null ? "border border-dashed border-input text-muted-foreground" : "bg-accent text-foreground",
+        className,
+      )}
+    >
+      {quem === null ? <UserRound className="size-[15px]" /> : quem.iniciais}
+    </span>
+  );
+}
+
+/** A linha de quem usa. O clique abre a janela de dizer ou mudar o nome. Recolhida, sobra o avatar com a dica. */
+function LinhaDeQuemUsa({ quem, abrir, recolhida, comBorda }: { quem: QuemUsa | null; abrir: () => void; recolhida: boolean; comBorda: boolean }) {
+  const rotulos = rotulosDeQuemUsa(quem);
+  return (
+    <Dica texto={rotulos.dica} ativa={recolhida}>
+      <button
+        type="button"
+        aria-label={rotulos.falado}
+        onClick={abrir}
+        className={cn(
+          "group flex w-full items-center text-left outline-none",
+          recolhida ? "h-10 justify-center" : "gap-[9px] px-2.5 py-2 transition-colors hover:bg-passar-na-moldura",
+          comBorda && !recolhida && "border-b",
+        )}
+      >
+        <Avatar quem={quem} className={cn(recolhida && quem !== null && "group-hover:bg-ativo")} />
+        {!recolhida && (
+          <span className="flex min-w-0 flex-1 flex-col leading-[1.2]">
+            <b className="truncate text-[13px] font-medium text-foreground">{rotulos.rotulo}</b>
+            <small className="truncate text-[11.5px] text-fraco">{rotulos.subtitulo}</small>
+          </span>
+        )}
+      </button>
+    </Dica>
   );
 }
 
@@ -198,8 +246,8 @@ function ListaDoMenu({ modelo, recolhida, naGaveta }: { modelo: ModeloDoMenu; re
   );
 }
 
-/** O cartão do pé: o resumo das conexões e, aberta, cada fonte com a idade, que sobe dentro do cartão. */
-function CartaoDasConexoes({ conexoes }: { conexoes: ConexoesDaLateral }) {
+/** O cartão do pé: quem está usando, o resumo das conexões e, aberta, cada fonte com a idade, que sobe dentro do cartão. */
+function CartaoDoPe({ conexoes, quem }: { conexoes: ConexoesDaLateral; quem: QuemNoCartao }) {
   const [aberto, alternar] = useLembrado(CHAVE_FONTES_ABERTAS);
   const id = useId();
   return (
@@ -218,6 +266,7 @@ function CartaoDasConexoes({ conexoes }: { conexoes: ConexoesDaLateral }) {
           </ul>
         </div>
       </div>
+      {quem !== null && <LinhaDeQuemUsa quem={quem.quem} abrir={quem.abrir} recolhida={false} comBorda />}
       <button
         type="button"
         aria-expanded={aberto}
@@ -235,7 +284,7 @@ function CartaoDasConexoes({ conexoes }: { conexoes: ConexoesDaLateral }) {
 }
 
 /** A lateral do computador: cabeçalho com o lugar do logo e o recolher, o menu que rola por dentro e o cartão do pé. Sem barra no topo. */
-export function Lateral({ modelo }: { modelo: ModeloDoMenu }) {
+export function Lateral({ modelo, quem }: { modelo: ModeloDoMenu; quem: QuemNoCartao }) {
   const [recolhida, alternar] = useLembrado(CHAVE_RECOLHIDA);
   const rotuloDoBotao = recolhida ? "Abrir a lateral" : "Recolher a lateral";
   return (
@@ -257,7 +306,12 @@ export function Lateral({ modelo }: { modelo: ModeloDoMenu }) {
       </div>
       {modelo.cartao !== null && !recolhida && (
         <div className="relative z-[3] flex-none bg-sidebar pt-2.5 pr-2.5">
-          <CartaoDasConexoes conexoes={modelo.cartao} />
+          <CartaoDoPe conexoes={modelo.cartao} quem={quem} />
+        </div>
+      )}
+      {recolhida && quem !== null && (
+        <div className="relative z-[3] flex-none bg-sidebar pt-2.5 pr-2.5">
+          <LinhaDeQuemUsa quem={quem.quem} abrir={quem.abrir} recolhida comBorda={false} />
         </div>
       )}
     </nav>
@@ -265,8 +319,19 @@ export function Lateral({ modelo }: { modelo: ModeloDoMenu }) {
 }
 
 /** No celular: o botão Menu no topo do conteúdo abre o mesmo menu numa gaveta pela esquerda. A gaveta fecha com Esc, com o X ou ao escolher uma tela. */
-export function MenuDoCelular({ modelo }: { modelo: ModeloDoMenu }) {
+export function MenuDoCelular({ modelo, quem }: { modelo: ModeloDoMenu; quem: QuemNoCartao }) {
   const [aberto, setAberto] = useState(false);
+  // A janela do nome abre sobre a página, com a gaveta já fechada: duas camadas modais seguidas confundem o foco.
+  const quemNaGaveta: QuemNoCartao =
+    quem === null
+      ? null
+      : {
+          quem: quem.quem,
+          abrir() {
+            setAberto(false);
+            quem.abrir();
+          },
+        };
   return (
     <div className="flex items-center gap-2.5 md:hidden">
       <Sheet open={aberto} onOpenChange={setAberto}>
@@ -305,7 +370,7 @@ export function MenuDoCelular({ modelo }: { modelo: ModeloDoMenu }) {
             <ListaDoMenu modelo={modelo} recolhida={false} naGaveta />
             {modelo.cartao !== null && (
               <div className="mt-auto pt-2.5">
-                <CartaoDasConexoes conexoes={modelo.cartao} />
+                <CartaoDoPe conexoes={modelo.cartao} quem={quemNaGaveta} />
               </div>
             )}
           </nav>

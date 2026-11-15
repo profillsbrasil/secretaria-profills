@@ -37,6 +37,8 @@
  * proposta enviada com o cliente sem nome e um cliente da carteira sem nome. Depois de Sincronizar, cada bloco mostra os
  * outros itens e a nota de quantos ficaram de fora.
  * `--vazio` tira tudo: sem tarefas, sem dados no CRM, sem conversas e sem conta de e-mail, para ver o Meu dia livre.
+ * Sem propostas, o CRM não dá o nome de quem usa, e o painel abre as boas-vindas. Com `--pronto` e sem `--vazio`, o
+ * cartão do pé mostra "Marina", o primeiro nome do responsável das propostas do falso.
  */
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -315,6 +317,8 @@ async function deixarPronto(): Promise<void> {
   for (const id of [7001, 7002, 7003, 7004, 7005]) {
     crm.dados.carteira.push(clienteFalso(9000 + id, new Date(Date.now() - 2 * 86_400_000).toISOString(), { nome: `CANARIO Cliente Proposta ${id}` }));
   }
+  // O cartão do pé mostra o primeiro nome do responsável das propostas: um nome de pessoa, não o canário.
+  for (const proposta of crm.dados.propostas) proposta.responsavel = { id: 77, nome: "Marina Costa" };
   if (vazio) for (const lista of [crm.dados.compromissos, crm.dados.propostas, crm.dados.carteira]) lista.splice(0);
   else {
     cadastrarClientes(crm);

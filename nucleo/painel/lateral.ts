@@ -1,4 +1,4 @@
-import { CONECTORES_UNICOS, type EstadoPainel, type Instante } from "../dominio";
+import { CONECTORES_UNICOS, type EstadoPainel, type Instante, type QuemUsa } from "../dominio";
 import type { MeuDia } from "../tarefas";
 import { NOMES_DOS_CONECTORES, SELO_DO_TOM, descrever, type Tom } from "./descrever";
 import { SELO_DA_CONTA } from "./email";
@@ -155,4 +155,20 @@ export function modeloDoMenu(rota: Rota | null, dia: MeuDia | null, estado: Esta
     },
     cartao,
   };
+}
+
+/** As palavras do cartão do pé para quem está usando. Sem nome, o cartão pede: "Diga seu nome". */
+export interface RotulosDeQuemUsa {
+  readonly rotulo: string;
+  readonly subtitulo: string;
+  /** A dica da lateral recolhida. */
+  readonly dica: string;
+  /** O que o leitor de tela fala no botão. */
+  readonly falado: string;
+}
+
+export function rotulosDeQuemUsa(quem: QuemUsa | null): RotulosDeQuemUsa {
+  if (quem === null) return { rotulo: "Diga seu nome", subtitulo: "Profills", dica: "Diga seu nome · fica só neste computador", falado: "Diga seu nome" };
+  const subtitulo = quem.origem === "crm" ? "Profills · nome do CRM" : "Profills · só neste computador";
+  return { rotulo: quem.nome, subtitulo, dica: `${quem.nome} · clique para mudar`, falado: `${quem.nome}, mudar o nome` };
 }

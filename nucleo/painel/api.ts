@@ -16,6 +16,8 @@
  * | POST   | /api/tarefas/:id/:acao      | `CorpoDaAcaoDaTarefa[acao]`         | `Saida<RespostaDaTarefa>`                  |
  * | POST   | /api/sincronizar            | nenhum                              | `Saida<Sincronizacao>`, no fim da rodada   |
  * | POST   | /api/painel/aberto          | nenhum                              | `Saida<DecisaoAutomatica>`, sem esperar a rodada |
+ * | GET    | /api/painel/quem-usa        |                                     | `Saida<VisaoDeQuemUsa>`                    |
+ * | POST   | /api/painel/quem-usa        | `{ nome }` ou `{ agoraNao: true }`  | `Saida<VisaoDeQuemUsa>`                    |
  * | POST   | /api/meu-dia/tarefas        | `{ tipo, id, tarefaId }`; conversa leva `canal` | `Saida<RespostaDaTarefa>`, vencendo hoje |
  * | POST   | /api/ignorados              | `{ tipo, id }`; conversa leva `canal` | `Saida<ItemIgnorado>`                    |
  * | POST   | /api/ignorados/desfazer     | `{ tipo, id }`; conversa leva `canal` | `Saida<{ tipo, id, desfeito }>`          |
@@ -50,6 +52,7 @@ import {
   type ProvedorEmail,
   type Saida,
   type VisaoDaContaEmail,
+  type VisaoDeQuemUsa,
   type VisaoDoEmail,
 } from "../dominio";
 import type { Sincronizacao } from "../conectores";
@@ -210,6 +213,10 @@ export interface ApiDeTarefas {
   sincronizar(): Promise<Resposta<Sincronizacao>>;
   /** O painel abriu: o servidor sincroniza se a leitura mais velha passou de 30 minutos. O andamento chega pelo SSE. */
   painelAberto(): Promise<Resposta<DecisaoAutomatica>>;
+  /** O nome do cartão do pé e se o painel abre as boas-vindas. Só a sessão do painel lê. */
+  quemUsa(): Promise<Resposta<VisaoDeQuemUsa>>;
+  /** `{ nome }` grava o nome que o vendedor disse; `{ agoraNao: true }` para de perguntar sozinho. Fica só nesta máquina. */
+  dizerNome(corpo: { readonly nome: string } | { readonly agoraNao: true }): Promise<Resposta<VisaoDeQuemUsa>>;
   ignorar(alvo: AlvoDoDia): Promise<Resposta<ItemIgnorado>>;
   desfazerIgnorado(alvo: AlvoDoDia): Promise<Resposta<{ readonly desfeito: boolean }>>;
   /** Só o painel escolhe. A chave é o telefone da conversa (E.164 com `+`) ou o endereço do remetente. */
@@ -260,6 +267,8 @@ export function criarApiDeTarefas(buscar: Buscar = (url, init) => fetch(url, ini
     agir: (id, pedido) => pedir(buscar, `${rotaDaTarefa(id)}/${pedido.acao}`, pedido.corpo),
     sincronizar: () => pedir(buscar, "/api/sincronizar", undefined, "POST"),
     painelAberto: () => pedir(buscar, "/api/painel/aberto", undefined, "POST"),
+    quemUsa: () => pedir(buscar, "/api/painel/quem-usa"),
+    dizerNome: (corpo) => pedir(buscar, "/api/painel/quem-usa", corpo),
     ignorar: (alvo) => pedir(buscar, "/api/ignorados", corpoDoAlvo(alvo)),
     desfazerIgnorado: (alvo) => pedir(buscar, "/api/ignorados/desfazer", corpoDoAlvo(alvo)),
     escolherCliente: ({ canal, chave }, escolha) => pedir(buscar, "/api/vinculos/escolher", { canal, chave, ...escolha }),
