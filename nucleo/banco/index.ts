@@ -34,6 +34,7 @@ export {
   type FiltroDeCabecalhos,
 } from "./email-cabecalhos";
 export { garantirInstalacao, definirBackendDoCofre, type DadosDaInstalacao } from "./instalacao";
+export { gravarNomeDigitado, gravarNomeNoCrm, lerNomesGuardados, marcarNomePerguntado, type NomesNoBanco } from "./quem-usa";
 export { migrar, lerMigracoes, migracoesPendentes, MigracaoRecusada, PASTA_DO_NUCLEO, type Migracao, type ResultadoDaMigracao, type Trilha } from "./migrar";
 export {
   cartaoTemEdicao,

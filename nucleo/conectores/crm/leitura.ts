@@ -110,8 +110,10 @@ const propostaDaLista = z
     moeda: valor,
     data_envio: dia.nullish(),
     prazo_retorno: dia.nullish(),
+    // Cru, para os sinais de injeção saírem do texto como veio (`nomeDoResponsavel`). Forma estranha vira `null` sem derrubar o item.
+    responsavel: z.object({ id, nome: z.string() }).nullish().catch(null),
   })
-  .transform((p) => ({ ...p, data_envio: p.data_envio ?? null, prazo_retorno: p.prazo_retorno ?? null }));
+  .transform((p) => ({ ...p, data_envio: p.data_envio ?? null, prazo_retorno: p.prazo_retorno ?? null, responsavel: p.responsavel ?? null }));
 export type PropostaDaLista = z.output<typeof propostaDaLista>;
 
 const detalheDaProposta = z

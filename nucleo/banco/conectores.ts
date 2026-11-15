@@ -12,7 +12,8 @@ import type { BancoAberto } from "./abrir";
 import { conector, eventoConector } from "./esquema";
 
 type Linha = typeof conector.$inferSelect;
-type Colunas = Omit<Linha, "id" | "atualizadoEm">;
+/** O nome do CRM não é da máquina de estados: a sincronização o grava, em `quem-usa.ts`. */
+type Colunas = Omit<Linha, "id" | "atualizadoEm" | "nomeNoCrm" | "nomeNoCrmLidoEm">;
 
 const LIMITE_DA_TRILHA = 500;
 
@@ -138,7 +139,8 @@ export function gravarConector<C extends IdConectorUnico>(
   causa: string,
   agora: Instante,
 ): void {
-  const colunas = PERSISTENCIA[id].paraColunas(estado);
+  // Desconectado, a próxima conexão pode ser de outra conta do CRM: o nome dela vem na leitura seguinte.
+  const colunas = { ...PERSISTENCIA[id].paraColunas(estado), ...(estado.fase === "desconectado" ? { nomeNoCrm: null, nomeNoCrmLidoEm: null } : {}) };
   const detalhe: Record<string, string> = { causa };
   if (estado.fase === "atencao" && estado.problema.detalhe !== undefined) detalhe.detalhe = estado.problema.detalhe;
   banco.db.transaction((tx) => {

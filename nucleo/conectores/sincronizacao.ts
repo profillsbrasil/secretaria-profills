@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { contarCabecalhos, gravarCache, listarCabecalhosDasConversas, gravarColetasDeEmail, gravarConversasLidas, gravarVinculoConsultado, lerCache, lerConversasLidas, listarCache, listarVinculos, type BancoAberto, type ColetaParaGravar } from "../banco";
+import { contarCabecalhos, gravarCache, gravarNomeNoCrm, listarCabecalhosDasConversas, gravarColetasDeEmail, gravarConversasLidas, gravarVinculoConsultado, lerCache, lerConversasLidas, listarCache, listarVinculos, type BancoAberto, type ColetaParaGravar } from "../banco";
 import {
   CANDIDATOS_NO_MAXIMO,
   CONVERSA_ATIVA_DIAS,
@@ -11,6 +11,7 @@ import {
   decidirVinculo,
   digitosDoTelefone,
   motivoDoPulo,
+  nomeDoResponsavel,
   diaEm,
   falha,
   instante,
@@ -385,14 +386,17 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
     let antes: number | undefined;
     let cortado = true;
     let fora = 0;
+    // Com `escopo=minhas`, o responsável de cada proposta é o vendedor: o nome do cartão do pé sai daqui, sem chamada a mais.
+    let responsavel: string | null = null;
     for (let pagina = 0; pagina < PAGINAS_NO_MAXIMO; pagina += 1) {
       const lida = await leitor.ler("listar_propostas", { escopo: "minhas", estagio: "enviada", limite: POR_PAGINA, ...(antes === undefined ? {} : { antes }) });
       if (!lida.ok) return lida;
       fora += lida.dados.fora_por_cadastro_incompleto;
       for (const proposta of lida.dados.propostas) {
+        responsavel ??= proposta.responsavel?.nome ?? null;
         // O filtro do CRM já pede `enviada`; a conferência aqui protege o prazo de quem não está nele.
         if (proposta.estagio !== "enviada" || proposta.data_envio === null) continue;
-        const { estagio: _estagio, data_envio, ...resto } = proposta;
+        const { estagio: _estagio, data_envio, responsavel: _responsavel, ...resto } = proposta;
         enviadas.push({ ...resto, enviada_em: data_envio });
       }
       antes = lida.dados.ultimo_id ?? undefined;
@@ -438,6 +442,7 @@ export function criarSincronizador(deps: DependenciasDoSincronizador): Sincroniz
         banco.db.transaction(() => {
           for (const [chave, link] of novos) gravarCache(banco, "proposta_link", chave, { link }, lidoEm);
           gravarCache(banco, "propostas", CHAVE_UNICA, valor, lidoEm);
+          gravarNomeNoCrm(banco, responsavel === null ? null : nomeDoResponsavel(responsavel), lidoEm);
         });
       },
     });

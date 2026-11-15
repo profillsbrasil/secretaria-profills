@@ -33,6 +33,10 @@ export const instalacao = sqliteTable(
     cofreBackend: text("cofre_backend", { enum: ["sistema", "arquivo"] }),
     /** Quando o vendedor escolheu pular o e-mail. `NULL` é "não pulou". */
     emailPuladoEm: text("email_pulado_em"),
+    /** O nome que o vendedor digitou no painel para o cartão do pé. Vence o do CRM. Nunca vai ao CRM. */
+    nomeDoVendedor: text("nome_do_vendedor"),
+    /** Quando o vendedor respondeu à pergunta do nome (Começar ou Agora não). `NULL` é "ainda não perguntou". */
+    nomePerguntadoEm: text("nome_perguntado_em"),
   },
   (t) => [
     check("instalacao_unica", sql`${t.id} = 1`),
@@ -59,6 +63,10 @@ export const conector = sqliteTable(
     conexaoExpiraEm: text("conexao_expira_em"),
     verificadoEm: text("verificado_em"),
     atualizadoEm: text("atualizado_em").notNull(),
+    /** Só o CRM: o `responsavel` das propostas do vendedor, já sem sinal de injeção. Zera ao desconectar. */
+    nomeNoCrm: text("nome_no_crm"),
+    /** Só o CRM: quando a sincronização leu as propostas, achando o nome ou não. Zera ao desconectar. */
+    nomeNoCrmLidoEm: text("nome_no_crm_lido_em"),
   },
   (t) => [
     check("conector_id", sql`${t.id} IN (${lista(CONECTORES)})`),
