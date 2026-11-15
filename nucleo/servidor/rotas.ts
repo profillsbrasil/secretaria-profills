@@ -8,10 +8,13 @@ import {
   desfazerConversaIgnorada,
   desfazerIgnorado,
   desfazerDecisaoDoVendedor,
+  gravarNomeDigitado,
   ignorarConversa,
   ignorarItem,
   ignoradosValendo,
   inserirTarefa,
+  lerNomesGuardados,
+  marcarNomePerguntado,
   lerCabecalhoDeEmail,
   listarCabecalhosDasConversas,
   lerTarefa,
@@ -32,7 +35,10 @@ import {
   TIPOS_DE_IGNORADO,
   AVISO_DA_LISTA_DE_EMAIL,
   SEM_ATENDIMENTO_MAXIMO_DIAS,
+  TAMANHO_DO_NOME,
   acoesPossiveis,
+  decidirQuemUsa,
+  lerNomeDigitado,
   cabecalhoParaOAgente,
   conversaNoMeuDia,
   conversasDeEmail,
@@ -92,6 +98,7 @@ import {
   type Resultado,
   type TipoDeIgnorado,
   type VisaoDaContaEmail,
+  type VisaoDeQuemUsa,
 } from "../dominio";
 import {
   ACOES_DA_TAREFA,
@@ -274,6 +281,8 @@ const corpoDeConectarConta = z.strictObject({
 });
 
 const corpoDePular = z.strictObject({ pulado: z.boolean() });
+
+const corpoDeQuemUsa = z.union([z.strictObject({ nome: z.string().max(200) }), z.strictObject({ agoraNao: z.literal(true) })]);
 
 const corpoDaSincronizacao = z.strictObject({ semAtendimentoHaDias: z.number().int().min(1).max(SEM_ATENDIMENTO_MAXIMO_DIAS).optional() }).optional();
 
@@ -594,6 +603,13 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
     );
     if (!corpo.ok) return corpo;
     return ok({ email: { id: idTexto, conta, de: cabecalho.cabecalho.remetente, em: cabecalho.cabecalho.instante }, corpo: corpo.dados });
+  }
+
+  /** Com o CRM conectado e as propostas ainda não lidas, a sincronização ao conectar vai trazer o nome. */
+  function quemUsa(): VisaoDeQuemUsa {
+    const nomes = lerNomesGuardados(banco);
+    const crm = conectores.estado().crm.fase !== "conectado" ? "fora" : nomes.doCrmLidoEm === null ? "esperando" : "lido";
+    return decidirQuemUsa({ digitado: nomes.digitado, perguntadoEm: nomes.perguntadoEm, doCrm: nomes.doCrm, crm });
   }
 
   function comNotas(id: string, seguinte: Tarefa | null): Resultado<RespostaDaTarefa> {
@@ -964,6 +980,33 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
       quem: ["painel"],
       async tratar({ chamador }) {
         return respostaJson(ok(await conectores.sincronizarAoAbrirOPainel()), chamador);
+      },
+    },
+    {
+      // O nome de quem usa é dado pessoal: só a sessão do painel o lê. O agente não o recebe por rota nenhuma.
+      metodo: "GET",
+      caminho: "/api/painel/quem-usa",
+      quem: ["painel"],
+      tratar: ({ chamador }) => respostaJson(ok(quemUsa()), chamador),
+    },
+    {
+      metodo: "POST",
+      caminho: "/api/painel/quem-usa",
+      quem: ["painel", "agente"],
+      async tratar({ req, chamador }) {
+        if (chamador !== "painel") return respostaJson(falha("so_no_painel", "O nome de quem usa a Secretária é o vendedor que diz ou muda, no painel."), chamador);
+        const corpo = await lerCorpo(req);
+        if (!corpo.ok) return respostaJson(falha(corpo.codigo), chamador);
+        const lido = corpoDeQuemUsa.safeParse(corpo.valor);
+        if (!lido.success) return respostaJson(falha("entrada_invalida", 'Mande {"nome":"..."} ou {"agoraNao":true}.'), chamador);
+        if ("agoraNao" in lido.data) {
+          marcarNomePerguntado(banco, deps.agora());
+          return respostaJson(ok(quemUsa()), chamador);
+        }
+        const nome = lerNomeDigitado(lido.data.nome);
+        if (nome === null) return respostaJson(falha("entrada_invalida", `Escreva um nome de 1 a ${TAMANHO_DO_NOME} letras.`), chamador);
+        gravarNomeDigitado(banco, nome, deps.agora());
+        return respostaJson(ok(quemUsa()), chamador);
       },
     },
     {
