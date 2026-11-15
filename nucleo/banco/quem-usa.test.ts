@@ -57,7 +57,7 @@ describe("nome de quem usa no banco", () => {
     gravarNomeNoCrm(banco, null, T1);
     expect(lerNomesGuardados(banco)).toMatchObject({ doCrm: "Marina Costa", doCrmLidoEm: T1 });
 
-    gravarConector(banco, "crm", { fase: "atencao", problema: { codigo: "crm_sessao_vencida", desde: T1 } }, "teste", T1);
+    gravarConector(banco, "crm", { fase: "atencao", problema: { codigo: "crm_conexao_vencida", desde: T1 } }, "teste", T1);
     expect(lerNomesGuardados(banco).doCrm).toBe(textoExterno("Marina Costa"));
     gravarConector(banco, "crm", { fase: "desconectado" }, "teste", T1);
     expect(lerNomesGuardados(banco)).toMatchObject({ doCrm: null, doCrmLidoEm: null });

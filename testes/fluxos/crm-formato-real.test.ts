@@ -76,8 +76,19 @@ test("listar_propostas: a lista vem em `propostas`, com `responsavel` e as datas
   const lista = dados(await leitor.ler("listar_propostas", { escopo: "minhas", estagio: "enviada" }));
   expect(lista.mais).toBe(true);
   expect(lista.propostas).toEqual([
-    { id: 7101, codigo: "0071/26", versao: 2, estagio: "enviada", cliente, valor_total: "1500.00", moeda: "BRL", data_envio: "2026-11-11", prazo_retorno: "2026-12-11" },
+    { id: 7101, codigo: "0071/26", versao: 2, estagio: "enviada", cliente, valor_total: "1500.00", moeda: "BRL", data_envio: "2026-11-11", prazo_retorno: "2026-12-11", responsavel: { id: 77, nome: "CANARIO Vendedor" } },
   ] as never);
+});
+
+test("listar_propostas: `responsavel` ausente ou fora do formato vira null, sem tirar a proposta da lista", async () => {
+  const base = { codigo: "0072/26", versao: 1, estagio: "enviada", valor_total: null, moeda: null, data_envio: "2026-11-11", cliente, prazo_retorno: null };
+  crm.botoes.respostasCruas.set("listar_propostas", { propostas: [{ id: 7102, ...base }, { id: 7103, ...base, responsavel: "Marina" }], mais: false });
+  const lista = dados(await leitor.ler("listar_propostas", { escopo: "minhas", estagio: "enviada" }));
+  expect(lista.fora_por_cadastro_incompleto).toBe(0);
+  expect(lista.propostas.map((proposta) => [proposta.id, proposta.responsavel])).toEqual([
+    [7102, null],
+    [7103, null],
+  ]);
 });
 
 test("ver_proposta: os nomes que o MCP dá ao detalhe do CRM", async () => {
