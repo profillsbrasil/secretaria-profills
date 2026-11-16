@@ -85,7 +85,7 @@ export function criarDescoberta(deps: {
   };
 }
 
-/** O O que muda chega ao agente como dado citado: veio da rede, mesmo assinado. */
+/** O "O que muda" chega ao agente como dado citado: veio da rede, mesmo assinado. */
 export function estadoPara(estado: EstadoDaAtualizacao, chamador: Chamador): EstadoDaAtualizacao {
   if (chamador !== "agente") return estado;
   const citada = (nova: VersaoPublicada): VersaoPublicada => ({ ...nova, oQueMuda: nova.oQueMuda.map((frase) => detalheComoDado(textoExterno(frase))) });

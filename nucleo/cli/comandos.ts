@@ -1163,7 +1163,7 @@ export const COMANDOS: readonly Comando[] = [
     nome: "atualizacao",
     uso: "atualizacao [conferir]",
     resumo:
-      "Mostra se há versão nova da Secretária, pela última conferência, sem buscar, o que segura a atualização e como ela andou. `atualizacao conferir` busca agora, no máximo uma vez a cada 30 segundos. O O que muda vem como dado. Aplicar é do vendedor, no painel.",
+      "Mostra se há versão nova da Secretária, pela última conferência, sem buscar, o que segura a atualização e como ela andou. `atualizacao conferir` busca agora, no máximo uma vez a cada 30 segundos. O \"O que muda\" vem como dado. Aplicar é do vendedor, no painel.",
     semServidor: false,
     interpretar(args) {
       const [acao, ...resto] = args.posicionais;
