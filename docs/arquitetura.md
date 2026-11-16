@@ -2,6 +2,22 @@
 
 A Secretária é um processo Bun por vendedor. Ele serve o painel e a API em `127.0.0.1` e é o único dono do banco, do cofre e dos processos do wacli. O painel, no navegador, e o CLI `bun secretaria`, do agente, são clientes HTTP desse processo.
 
+## Mapa
+
+Leia só as seções da área que você muda.
+
+| Você muda | Leia a seção |
+|---|---|
+| Conectores e segredos | "Conectores como máquinas de estado", "Segredos", "O que é fronteira e o que não é" |
+| E-mail | "E-mail: contas opcionais", "E-mail: coleta de cabeçalhos e leitura", "E-mail no Meu dia" |
+| Tarefas | "Tarefas" |
+| CRM e Meu dia | "Leitura do CRM", "Relatório de atividade" |
+| WhatsApp | "Leitura do WhatsApp e quarentena", "Conversas do WhatsApp no Meu dia" |
+| Fila de aprovação | "Fila de aprovação" |
+| Servidor e backup | "Um escritor", "Vida do servidor", "Backup diário", "Núcleo e `meu/`" |
+| Versão e atualização | "Versão e novidades", "Pacote da versão e assinatura", "Descoberta de versão nova", "Aplicar a versão nova", "A tela da atualização", "O atualizador" |
+| Instalação | "Instalação" |
+
 ## Um escritor
 
 | Recurso | Dono | Como a regra é cobrada |

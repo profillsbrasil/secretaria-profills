@@ -1,6 +1,6 @@
 # Secretária Profills
 
-Base pessoal e local de um vendedor da Profills. Um servidor em `127.0.0.1` liga os conectores (WhatsApp pelo wacli, CRM por OAuth e até 5 contas de e-mail por IMAP, opcionais) e mostra um painel no navegador. Você, agente, opera tudo pelo CLI `bun secretaria`. Leia `docs/arquitetura.md` antes de mudar código.
+Base pessoal e local de um vendedor da Profills. Um servidor em `127.0.0.1` liga os conectores (WhatsApp pelo wacli, CRM por OAuth e até 5 contas de e-mail por IMAP, opcionais) e mostra um painel no navegador. Você, agente, opera tudo pelo CLI `bun secretaria`. Antes de mudar código, leia o mapa no topo de `docs/arquitetura.md` e só as seções da área que você muda.
 
 ## Pastas
 
