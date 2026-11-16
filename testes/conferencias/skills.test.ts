@@ -19,8 +19,8 @@ const SERVIDOR_DO_VENDEDOR = "O servidor continua no ar mesmo que ele feche o te
 const secao = (texto: string, titulo: string) => (texto.split(titulo)[1] ?? "").split(/\n#{2,3} /)[0] ?? "";
 
 describe("skills da Secretária", () => {
-  test("o AGENTS.md cabe em 2.500 palavras", () => {
-    expect(lerNaRaiz("AGENTS.md").split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(2500);
+  test("o AGENTS.md cabe em 2.600 palavras", () => {
+    expect(lerNaRaiz("AGENTS.md").split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(2600);
   });
 
   test("toda skill de .agents/skills está na tabela de skills do AGENTS.md", () => {

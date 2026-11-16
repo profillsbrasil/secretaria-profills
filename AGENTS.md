@@ -65,7 +65,7 @@ Ignorar item do Meu dia é do vendedor: siga a skill `secretaria-ignorar`. O que
 
 `--versao` é a versão que você leu em `tarefa ver` ou `meu-dia`. Versão velha responde `conflito_de_versao` com a tarefa atual em `erro.atual`. Reabrir tarefa concluída ou descartada é do vendedor, no painel.
 
-Para escrever no CRM, siga a skill `registrar-no-crm`: você propõe o cartão com `escrita propor`, e aprovar, editar e descartar são do vendedor, no painel.
+Para escrever no CRM, siga a skill `registrar-no-crm`: você propõe o cartão com `escrita propor`, e aprovar, editar e descartar são do vendedor, no painel. Cartão com `quarentena` você não lê por outro caminho. Em `falhou_incerto`, o registro pode já estar no CRM: não proponha de novo.
 
 Se `tarefa criar` ou `escrita propor` falhar sem resposta, repita o mesmo comando com o `--id` que o erro traz: o que já existe volta igual, sem duplicar.
 
