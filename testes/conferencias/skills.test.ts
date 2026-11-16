@@ -19,6 +19,10 @@ const SERVIDOR_DO_VENDEDOR = "O servidor continua no ar mesmo que ele feche o te
 const secao = (texto: string, titulo: string) => (texto.split(titulo)[1] ?? "").split(/\n#{2,3} /)[0] ?? "";
 
 describe("skills da Secretária", () => {
+  test("o AGENTS.md cabe em 2.500 palavras", () => {
+    expect(lerNaRaiz("AGENTS.md").split(/\s+/).filter(Boolean).length).toBeLessThanOrEqual(2500);
+  });
+
   test("toda skill de .agents/skills está na tabela de skills do AGENTS.md", () => {
     const tabela = (readFileSync(join(SKILLS, "..", "..", "AGENTS.md"), "utf8").split("## Skills")[1] ?? "").split("\n## ")[0] ?? "";
     expect(readdirSync(SKILLS).filter((nome) => !tabela.includes(`| \`${nome}\` |`))).toEqual([]);
