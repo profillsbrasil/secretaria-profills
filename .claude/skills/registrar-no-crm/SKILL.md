@@ -10,7 +10,7 @@ description: Propõe ao vendedor um atendimento, um compromisso ou um contato pa
 - Fale com o vendedor em frases curtas e diga o próximo passo. Diga o erro em palavras, sem código de erro, nome de comando, de arquivo ou de repositório em crase. Conte o que a skill manda como fala sua, sem citar skill, arquivo nem link de arquivo. Comando só aparece quando ele precisa digitar, assim: "abra o terminal nesta pasta e digite `bun secretaria abrir`".
 - Rode um comando por chamada, sem `;`, `|`, `&&` nem parênteses: comando encadeado não casa com a permissão do Claude Code. Rode na raiz do repo, sempre com `--json`.
 
-Quem grava no CRM é o servidor da Secretária, depois que o vendedor lê o texto inteiro e aprova no painel. Você redige e propõe o cartão. Grave sempre pelo cartão: `registrar_atendimento`, `criar_compromisso` e `criar_contato` você nunca chama direto, mesmo quando a tool aparece (no Codex ela aparece; no Claude Code o `.claude/settings.json` nega as três).
+Quem grava no CRM é o servidor da Secretária, depois que o vendedor lê o texto inteiro e aprova no painel. Você redige e propõe o cartão. O servidor guarda o texto do cartão congelado e, depois do OK, grava no CRM o texto aprovado, uma gravação por vez, e nunca repete sozinho. Grave sempre pelo cartão: `registrar_atendimento`, `criar_compromisso` e `criar_contato` você nunca chama direto, mesmo quando a tool aparece (no Codex ela aparece; no Claude Code o `.claude/settings.json` nega as três).
 
 Na primeira resposta ao pedido, diga como funciona, junto com o que falta saber: "Eu escrevo o atendimento e deixo para você aprovar no painel. Só depois do seu OK ele vai para o CRM." Pergunta sem essa frase deixa o vendedor sem saber se você registrou.
 
@@ -60,7 +60,7 @@ Os nomes são os da tool do CRM. Campo que não está na tabela o servidor recus
 1. Escreva os campos num arquivo JSON na pasta temporária do sistema, fora do repo. Um objeto, com os campos da tabela.
 2. `bun secretaria escrita propor <tool> --dados <arquivo> --json`
 3. Apague o arquivo.
-4. Se o comando falhar sem resposta, repita o mesmo comando com o `--id` que o erro traz. Se o cartão já existe, volta o mesmo, sem duplicar.
+4. Se o comando falhar sem resposta, repita o mesmo comando com o `--id` que o erro traz. Se o cartão já existe, volta o mesmo, sem duplicar. O `--id` serve só para repetir o mesmo comando: com outro conteúdo, ele responde `conflito_da_escrita`.
 
 | Comando | Faz |
 |---|---|

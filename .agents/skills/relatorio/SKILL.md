@@ -12,8 +12,8 @@ description: Conta ao vendedor o que ele fez num período, com os atendimentos q
 
 1. Escolha o período e rode o comando.
    - Sem período: `bun secretaria relatorio --json`. Vale de segunda a hoje.
-   - Com período: `bun secretaria relatorio --de AAAA-MM-DD --ate AAAA-MM-DD --json`, com até 92 dias. Palavras como "semana passada" ou "outubro" viram duas datas; diga ao vendedor quais você usou.
-   - O comando espera o CRM por até 60 s. Confira que `ok` é `true`. Com `entrada_invalida`, corrija as datas e rode uma vez mais. Com `servidor_fora_do_ar`, siga "Servidor que cai" na skill `secretaria-setup`.
+   - Com período: `bun secretaria relatorio --de AAAA-MM-DD --ate AAAA-MM-DD --json`, com até 92 dias. Leva as duas datas ou nenhuma. Palavras como "semana passada" ou "outubro" viram duas datas; diga ao vendedor quais você usou.
+   - O comando lê o CRM na hora, uma leitura por status do atendimento, e espera o CRM por até 60 s. Confira que `ok` é `true`. Com `entrada_invalida`, corrija as datas e rode uma vez mais. Com `servidor_fora_do_ar`, siga "Servidor que cai" na skill `secretaria-setup`.
 2. Veja `atendimentos.motivo`:
 
 | `motivo` | O que fazer |
