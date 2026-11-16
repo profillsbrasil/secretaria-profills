@@ -18,6 +18,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useEffect, useId, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import icone from "./icone.svg";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -93,11 +94,11 @@ function Dica({ texto, ativa, children }: { texto: string; ativa: boolean; child
   );
 }
 
-export function LugarDoLogo({ className }: { className?: string }) {
+export function Logo({ className }: { className?: string }) {
   return (
-    <span aria-hidden className={cn("grid size-7 shrink-0 place-items-center rounded-[7px] border border-dashed border-input text-[7px] font-semibold tracking-wide text-fraco uppercase", className)}>
-      logo
-    </span>
+    <svg aria-hidden viewBox="0 0 64 64" className={cn("size-7 shrink-0", className)}>
+      <use href={`${icone}#sino`} />
+    </svg>
   );
 }
 
@@ -150,7 +151,7 @@ function LinhaDeQuemUsa({ quem, abrir, recolhida, comBorda }: { quem: QuemUsa | 
 function Marca() {
   return (
     <span className="flex min-w-0 items-center gap-2.25">
-      <LugarDoLogo />
+      <Logo />
       <span className="truncate text-[15px] font-semibold tracking-tight">Secretária</span>
     </span>
   );
@@ -320,7 +321,7 @@ export function Lateral({ modelo, quem, atualizacao }: { modelo: ModeloDoMenu; q
       className={cn("sticky top-0 z-10 hidden h-dvh shrink-0 flex-col py-2.5 pl-2.5 transition-[width] duration-200 ease-out md:flex", recolhida ? "w-16" : "w-61")}
     >
       <div className={cn("mb-2 flex min-h-10 items-center gap-1.5 pr-2.5", recolhida ? "flex-col justify-center" : "justify-between pl-1")}>
-        {recolhida ? <LugarDoLogo /> : <Marca />}
+        {recolhida ? <Logo /> : <Marca />}
         <Dica texto={rotuloDoBotao} ativa>
           <Button variant="ghost" size="icon-sm" aria-label={rotuloDoBotao} onClick={alternar}>
             {recolhida ? <PanelLeftOpen aria-hidden /> : <PanelLeftClose aria-hidden />}

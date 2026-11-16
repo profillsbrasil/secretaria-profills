@@ -266,7 +266,7 @@ As regras ficam em `nucleo/tarefas`, sem I/O. `decidir(atual, comando, contexto)
 
 ### Lateral do painel
 
-A lateral (`nucleo/painel/Navegacao.tsx`) não lê nada por conta própria. O `App` faz uma leitura de `/api/meu-dia` para o painel inteiro (`useDia`) e passa a mesma `Carga` à tela Meu dia; a lateral conta os blocos e as tarefas dessa leitura em toda tela. O cartão do pé junta o snapshot do SSE (fase de cada conector e de cada conta de e-mail) com as idades do rodapé do Meu dia. `modeloDoMenu` (`nucleo/painel/lateral.ts`) é a função pura que decide o item atual, as contagens, o ponto quente e o destino de cada link. A linha Meu dia volta ao último bloco que a rota mostrou (`listaLembrada`), guardado só na memória da aba. Recolhida e cartão aberto ficam no `localStorage`. No celular, o mesmo menu abre numa gaveta pela esquerda, pelo botão Menu.
+A lateral (`nucleo/painel/Navegacao.tsx`) não lê nada por conta própria. O `App` faz uma leitura de `/api/meu-dia` para o painel inteiro (`useDia`) e passa a mesma `Carga` à tela Meu dia; a lateral conta os blocos e as tarefas dessa leitura em toda tela. O cartão do pé junta o snapshot do SSE (fase de cada conector e de cada conta de e-mail) com as idades do rodapé do Meu dia. `modeloDoMenu` (`nucleo/painel/lateral.ts`) é a função pura que decide o item atual, as contagens, o ponto quente e o destino de cada link. A linha Meu dia volta ao último bloco que a rota mostrou (`listaLembrada`), guardado só na memória da aba. Recolhida e cartão aberto ficam no `localStorage`. No celular, o mesmo menu abre numa gaveta pela esquerda, pelo botão Menu. O logo da lateral e o ícone da aba são o mesmo arquivo, `nucleo/painel/icone.svg`.
 
 ### Quem usa
 

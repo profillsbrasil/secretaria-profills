@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import type { Resposta } from "./api";
-import { LugarDoLogo, type QuemNoCartao } from "./Navegacao";
+import { Logo, type QuemNoCartao } from "./Navegacao";
 import type { Aviso } from "./tarefas";
 import { AvisoFlutuante, api, useCarga } from "./telas/comum";
 
@@ -93,7 +93,7 @@ function BoasVindas({ aoSalvar, agoraNao }: { aoSalvar: (nome: string) => Promis
         onPointerDownOutside={(evento) => evento.preventDefault()}
         onInteractOutside={(evento) => evento.preventDefault()}
       >
-        <LugarDoLogo className="mb-3.5 size-10" />
+        <Logo className="mb-3.5 size-10" />
         <DialogTitle className="mb-1.5 text-[21px] tracking-[-0.01em]">Boas-vindas à Secretária</DialogTitle>
         <DialogDescription className="mb-[18px] text-[13.5px]">Ela lê o seu WhatsApp, o seu CRM e os seus e-mails e monta o seu dia. Antes, como você quer ser chamado?</DialogDescription>
         <FormularioDoNome inicial="" botao="Começar" secundario="Agora não" doCrm={false} aoSecundario={agoraNao} aoSalvar={aoSalvar} />

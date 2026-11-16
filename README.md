@@ -1,3 +1,5 @@
+<img src="nucleo/painel/icone.svg" alt="" width="72" />
+
 # Secretária Profills
 
 A Secretária é a base pessoal de cada vendedor da Profills. Ela roda só no computador dele e junta o WhatsApp do trabalho, o CRM e, se ele quiser, as contas de e-mail num painel no navegador. O vendedor usa a Secretária junto com o agente de IA dele (Claude Code ou Codex), que lê o estado e pode mudar este repo a pedido.

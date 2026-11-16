@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" id="sino" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#3fc4a2"/>
+  <g fill="none" stroke="#23211e" stroke-width="2.8" stroke-linecap="round">
+    <path d="M42.6 21.6 44 17.4M46.6 24.4 50 21M48.8 28.8 53 27.2"/>
+  </g>
+  <rect x="26" y="19.5" width="12" height="4.4" rx="2.2" fill="#f3f1ef"/>
+  <rect x="30.4" y="22" width="3.2" height="7" fill="#f3f1ef"/>
+  <path d="M16.5 43a15.5 15.5 0 0 1 31 0z" fill="#f3f1ef"/>
+  <path d="M21.6 39.4a10.6 10.6 0 0 1 5-7.6" fill="none" stroke="#23211e" stroke-width="1.9" stroke-linecap="round"/>
+  <rect x="12" y="44" width="40" height="6.4" rx="3.2" fill="#23211e"/>
+</svg>
