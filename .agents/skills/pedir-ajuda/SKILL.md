@@ -1,6 +1,6 @@
 ---
 name: pedir-ajuda
-description: Tenta destravar a Secretária e, se não der, escreve um pedido de ajuda pronto para o vendedor mandar ao suporte da Profills, só com fases, códigos de erro, versões e sistema. Use quando o vendedor disser que travou, que deu erro ou que não sabe o que fazer.
+description: Tenta destravar a Secretária e, se não der, escreve um pedido de ajuda pronto, só com fases, códigos de erro, versões e sistema, para o vendedor abrir como issue no GitHub da Secretária ou mandar a quem cuida dela na Profills. Use quando o vendedor disser que travou, que deu erro ou que não sabe o que fazer.
 ---
 
 # Pedir ajuda
@@ -24,7 +24,7 @@ description: Tenta destravar a Secretária e, se não der, escreve um pedido de 
    - o script de instalação parou: a última linha dele começa com "Para o suporte:" e traz o motivo. Faça o que a frase de antes dela diz, como conferir a internet ou fechar o que tem arquivo da pasta aberto, e peça que ele rode o script de novo.
 
    Resolveu quando o comando que falhou responde `ok: true`, o conector sai de `atencao`, a atualização chega a `atualizado` ou o script termina sem a linha "Para o suporte:". Diga ao vendedor que destravou e pare aqui.
-4. Não resolveu: monte o pedido de ajuda (abaixo), mostre ao vendedor num bloco de texto e diga: "Copie este texto e mande para o suporte da Profills." Quem manda é ele: você só escreve o texto.
+4. Não resolveu: monte o pedido de ajuda (abaixo), mostre ao vendedor num bloco de texto e siga "Enviar o pedido". Quem envia é ele: você só escreve o texto.
 
 ### Servidor que cai
 
@@ -68,6 +68,15 @@ Travas do CRM: <travas.faltando> de <quantas em travas.regras> faltando
 | motivo da instalação | a linha "Para o suporte:" do script, só a palavra antes do parêntese |
 
 Em `darwin` (macOS), `sistema.versao` é a versão do kernel, não a do macOS. Copie como veio.
+
+## Enviar o pedido
+
+Depois de mostrar o texto, ofereça os dois caminhos e deixe o vendedor escolher:
+
+- Com conta no GitHub: ele copia o texto, abre https://github.com/profillsbrasil/secretaria-profills/issues/new?template=pedido-de-ajuda.md, cola no campo grande e clica em enviar. Avise antes que essa página é pública: qualquer pessoa lê o que ele colar.
+- Sem conta, ou se ele preferir: ele manda o mesmo texto a quem cuida da Secretária na Profills.
+
+Você não abre a issue por ele, nem com `gh` nem pelo navegador: o texto sai da máquina pela mão dele. Na issue vai só o texto que você montou. Se ele quiser acrescentar algo, repita o que fica de fora, abaixo.
 
 ## O que fica de fora
 

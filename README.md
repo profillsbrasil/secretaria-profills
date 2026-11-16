@@ -68,7 +68,7 @@ Para registrar um atendimento, marcar um compromisso ou cadastrar um contato no 
 
 Para saber o que fez, o vendedor pede "me mostra o relatório da semana" (no Claude Code, `/relatorio`; no Codex, `$relatorio`), ou o relatório de um período, como "de 1 a 31 de outubro". O agente conta, em frases curtas, os atendimentos que ele registrou no CRM e as tarefas que concluiu na Secretária. Sem datas, é a semana, de segunda a hoje. O relatório lê o CRM na hora, não guarda nada, e sem o CRM conectado traz só as tarefas.
 
-Quando travar, o vendedor diz "travou" ou "deu erro" (no Claude Code, `/pedir-ajuda`; no Codex, `$pedir-ajuda`). O agente lê o estado, tenta a saída que o erro indica e, se não resolver, escreve um pedido de ajuda para o vendedor copiar e mandar ao suporte da Profills. O pedido leva só fases, códigos de erro, versões e sistema, sem nome de cliente, mensagem ou senha.
+Quando travar, o vendedor diz "travou" ou "deu erro" (no Claude Code, `/pedir-ajuda`; no Codex, `$pedir-ajuda`). O agente lê o estado, tenta a saída que o erro indica e, se não resolver, escreve um pedido de ajuda. O vendedor o abre como issue em https://github.com/profillsbrasil/secretaria-profills/issues, que é pública, ou o manda a quem cuida da Secretária na Profills. O pedido leva só fases, códigos de erro, versões e sistema, sem nome de cliente, mensagem ou senha.
 
 ## Onde ficam os dados
 
