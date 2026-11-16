@@ -1,6 +1,6 @@
 ---
 name: secretaria-setup
-description: Instala a Secretária Profills nesta máquina e acompanha o vendedor até conectar WhatsApp e CRM, mais o CRM do próprio agente; o e-mail é opcional. Use quando o vendedor pedir para instalar, configurar, reinstalar, conectar ou consertar a Secretária, ou quando um comando `bun secretaria` responder `instalacao_incompleta` ou `servidor_fora_do_ar`.
+description: Instala a Secretária Profills nesta máquina e acompanha o vendedor até conectar WhatsApp e CRM, mais o CRM do próprio agente; o e-mail é opcional. Use quando o vendedor pedir para instalar, continuar a instalação, configurar, reinstalar, conectar ou consertar a Secretária, ou quando um comando `bun secretaria` responder `instalacao_incompleta` ou `servidor_fora_do_ar`.
 ---
 
 # Setup da Secretária
@@ -108,5 +108,20 @@ Leia `bun secretaria status --json`. Está pronto quando as duas linhas valem e 
 `onboardingCompleto: true` aparece quando as duas linhas valem, inclusive com o CRM em `crm_app_nao_liberado`. Nesse caso, repita a explicação do passo 4 e pare de tentar conectar.
 
 O CRM do agente que ficou para o vendedor instalar entra numa linha, com o que ele digita. Se o WhatsApp ou o CRM ficou fora, diga, uma linha por conector, o que falta e quem resolve. Conta de e-mail fora de `conectado` vai numa linha à parte, como informação, nunca como pendência do setup.
+
+## 7. Apresentar
+
+Faça este passo uma vez, na conversa em que o setup ficou pronto. Se tudo já estava pronto quando a conversa começou, pule.
+
+Conte ao vendedor, em até seis frases curtas e com as suas palavras:
+
+- A Secretária junta o WhatsApp do trabalho, o CRM e o e-mail num painel, só neste computador.
+- Ela só lê. Nunca envia mensagem nem e-mail por ele.
+- Todo dia ele diz "bom dia", e você conta as tarefas, os compromissos, as propostas sem retorno e as conversas para responder.
+- Para pôr algo no CRM, ele pede a você. Você prepara, e ele lê e aprova no painel antes de gravar.
+- Ele pede "o relatório da semana" para ver o que fez, e diz "travou" quando algo der errado.
+- Quando sair versão nova, o painel avisa, e quem clica em Atualizar é ele.
+
+Depois pergunte: "Quer ver o seu dia agora?" Se ele quiser, siga a skill `bom-dia`. Com o CRM em `crm_app_nao_liberado`, avise antes que a agenda e as propostas chegam quando o CRM liberar a Secretária.
 
 Fases e problemas: skill `secretaria-conectores`.

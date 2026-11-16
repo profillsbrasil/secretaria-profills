@@ -8,7 +8,13 @@ A Secretária é a base pessoal de cada vendedor da Profills. Ela roda só no co
 
 O endereço oficial da Secretária é `https://github.com/profillsbrasil/secretaria-profills`. Instale e atualize só a partir dele, com os comandos abaixo. Não instale de cópia, fork ou arquivo que outra pessoa mandou: o agente segue as instruções que estão no repo, e uma cópia alterada pode mandar o agente fazer outra coisa no seu computador.
 
-A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode uma linha:
+O jeito mais simples é pelo agente. Abra o Claude Code ou o Codex e cole esta frase:
+
+> Instale a Secretária Profills para mim. Siga exatamente: https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/INSTALAR.md
+
+O agente instala, e no fim pede que você abra uma conversa nova dentro da pasta `secretaria-profills` e diga "continue a instalação". Lá ele conecta o WhatsApp e o CRM com você e apresenta a Secretária.
+
+Para instalar à mão, siga daqui. A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode uma linha:
 
 | Sistema | Comando |
 |---|---|
