@@ -17,7 +17,7 @@ Aplicar a versão nova é do vendedor, no painel: o CLI não aplica, e a rota re
 A Secretária confere se há versão nova quando o vendedor abre o painel, no máximo a cada 6 horas, ou quando você roda `atualizacao conferir` porque ele perguntou. Nada confere sozinho em intervalo.
 
 1. `bun secretaria atualizacao --json` lê a última conferência, sem buscar.
-2. Se ele perguntou e a última conferência não responde, `bun secretaria atualizacao conferir --json` busca agora, uma vez a cada 30 segundos (`conferir_cedo_demais`).
+2. Quando ele perguntar se há versão nova, `bun secretaria atualizacao conferir --json` busca agora, uma vez a cada 30 segundos (`conferir_cedo_demais`).
 3. Conte pela `fase`, na tabela abaixo.
 
 | `fase` | O que dizer e fazer |
