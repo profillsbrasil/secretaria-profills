@@ -12,7 +12,7 @@ O jeito mais simples é pelo agente. Abra o Claude Code ou o Codex e cole esta f
 
 > Instale a Secretária Profills para mim. Siga exatamente: https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/INSTALAR.md
 
-O agente instala, e no fim pede que você abra uma conversa nova dentro da pasta `secretaria-profills` e diga "continue a instalação". Lá ele conecta o WhatsApp e o CRM com você e apresenta a Secretária.
+O agente instala, e no fim pede que você abra uma conversa nova dentro da pasta `secretaria-profills` e diga "continue a instalação". Lá ele conecta o WhatsApp e o CRM com você.
 
 Para instalar à mão, siga daqui. A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode uma linha:
 

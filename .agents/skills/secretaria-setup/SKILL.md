@@ -116,7 +116,7 @@ Faça este passo uma vez, na conversa em que o setup ficou pronto. Se tudo já e
 Conte ao vendedor, em até seis frases curtas e com as suas palavras:
 
 - A Secretária junta o WhatsApp do trabalho, o CRM e o e-mail num painel, só neste computador.
-- Ela só lê. Nunca envia mensagem nem e-mail por ele.
+- Ela só lê o WhatsApp e o e-mail. Nunca envia mensagem nem e-mail por ele.
 - Todo dia ele diz "bom dia", e você conta as tarefas, os compromissos, as propostas sem retorno e as conversas para responder.
 - Para pôr algo no CRM, ele pede a você. Você prepara, e ele lê e aprova no painel antes de gravar.
 - Ele pede "o relatório da semana" para ver o que fez, e diz "travou" quando algo der errado.
