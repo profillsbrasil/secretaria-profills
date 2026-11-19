@@ -45,6 +45,10 @@ O `CHECK` das tabelas `conector` e `email_conta` recusa fase transitória, entã
 
 O WhatsApp pareia, para em `confirmar_conta` até o vendedor confirmar no painel que o número é o do trabalho, e só então liga o espelho (`wacli sync --follow`).
 
+Em `pareando`, a ação `reparear` (o botão Novo QR) para o `wacli auth` da tela e abre outro pareamento, por QR ou por código, numa transição só: `parar` vem antes de `iniciar_pareamento`, porque o processo novo pega o lock da store. O pedido leva a rodada, o `expiraEm` do pareamento que o vendedor viu. Rodada que não é a atual não faz nada, então o clique duplo sobe um processo só. Sem rodada, como no CLI, vale a atual. O agente pede `reparear` como pede `conectar` e também não recebe QR nem código.
+
+O painel pede o QR sozinho. Ao abrir Conexões com o WhatsApp `desconectado`, o canal aberto e a aba na frente, a tela manda `conectar` uma vez por montagem; a regra é a tabela pura `decidirQrAoAbrir`, em `nucleo/painel/qr-ao-abrir.ts`. Na mesma montagem, prazo vencido, cancelar, recusar e desconectar não reabrem o pareamento, e `atencao` mantém as saídas de `PROBLEMAS`. O servidor não ganha gatilho: ler o estado nunca inicia pareamento. O pareamento que a tela abre segura a atualização por até 3 minutos, como o que o vendedor abre no botão.
+
 ## Segredos
 
 Os segredos são o refresh token do CRM, a chave de sessão do painel e a senha de cada conta de e-mail. As chaves fixas estão numa lista fechada (`CHAVES_DO_COFRE`); a senha de uma conta mora em `email.conta.<id>.senha`, e `ehChaveDoCofre` só aceita esse formato com o UUID da conta. `email.senha` é a chave da conta única antiga e só a migração a lê. Moram no chaveiro do sistema por `Bun.secrets`. Sem chaveiro, moram em `<dados>/cofre.json` com modo 0600. O instalador sonda o chaveiro uma vez e grava o backend em `instalacao.cofre_backend`; o servidor nunca troca de backend sozinho.
@@ -53,7 +57,7 @@ Em memória, todo segredo é um `Segredo`: `JSON.stringify`, template string e l
 
 A API exige quem chama: o painel por cookie de sessão obtido com bilhete, o agente por Bearer, guardado no `servidor.json` da pasta de dados. `Host`, `Origin` e `Sec-Fetch-Site` errados recebem 403 antes do roteamento (`nucleo/servidor/guarda.ts`). Bearer e sessão são comparados em tempo constante. A sessão vence em 30 dias e só as 5 mais novas valem.
 
-`GET /entrar` troca o bilhete por cookie só num pedido com os cabeçalhos de navegação de topo (`Sec-Fetch-Site: none`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`), e `bun secretaria abrir` entrega o link ao navegador sem imprimi-lo. `abrir --sem-navegador` sobe o servidor e devolve só o endereço do painel, sem pedir bilhete. Uma página web não forja esses cabeçalhos; um programa local os escreve. No WhatsApp, a API recusa `confirmar`, `recusar` e `desconectar` vindos do Bearer do agente.
+`GET /entrar` troca o bilhete por cookie só num pedido com os cabeçalhos de navegação de topo (`Sec-Fetch-Site: none`, `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`), e `bun secretaria abrir` entrega o link ao navegador sem imprimi-lo. `abrir --sem-navegador` sobe o servidor e devolve só o endereço do painel, sem pedir bilhete. Uma página web não forja esses cabeçalhos; um programa local os escreve. No WhatsApp, a API recusa `confirmar`, `recusar` e `desconectar` vindos do Bearer do agente; `reparear` segue a regra do `conectar`.
 
 ## O que é fronteira e o que não é
 

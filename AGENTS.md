@@ -29,7 +29,7 @@ Rode um comando por chamada, sem `;`, `|`, `&&` nem parênteses: comando encadea
 | `bun secretaria status` | fase e ações do WhatsApp, do CRM e de cada conta de e-mail, pelo rótulo |
 | `bun secretaria esperar <whatsapp\|crm>=<fase> --ate <duração>` | espera um conector chegar à fase |
 | `bun secretaria esperar email:<rótulo>=<fase> --ate <duração>` | espera uma conta de e-mail chegar à fase |
-| `bun secretaria conector <whatsapp\|crm> <acao> [--telefone +5511999998888]` | o mesmo que o botão do painel; `--telefone` só em `whatsapp conectar`, e o código aparece só no painel |
+| `bun secretaria conector <whatsapp\|crm> <acao> [--telefone +5511999998888]` | o mesmo que o botão do painel; `--telefone` só em `whatsapp conectar` e `whatsapp reparear` (o Novo QR, só no pareamento), e o QR e o código aparecem só no painel |
 | `bun secretaria email testar <rótulo>` / `cancelar <rótulo>` | testa o login da conta / corta o teste |
 | `bun secretaria email rotulo <rótulo> <novo>` / `janela <rótulo> <30\|60\|90>` | troca o rótulo / os dias que a coleta lê |
 | `bun secretaria email pular` / `retomar` | pula o e-mail por enquanto / volta atrás |
