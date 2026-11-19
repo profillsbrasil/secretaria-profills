@@ -51,6 +51,7 @@ const ACAO_DO_PEDIDO: Readonly<Record<string, Acao>> = {
   pedido_desconectar: "desconectar",
   pedido_confirmar: "confirmar",
   pedido_recusar: "recusar",
+  pedido_reparear: "reparear",
 };
 
 /** A ação que o pedido representa, para a casca responder `acao_indisponivel` com a mesma regra da máquina. */

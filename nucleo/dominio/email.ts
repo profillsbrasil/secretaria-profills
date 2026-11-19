@@ -36,6 +36,8 @@ export type SondagemEmail =
 export type EventoEmail =
   | { readonly tipo: "pedido_conectar"; readonly entrada: EntradaConectar["email"] }
   | Pedido
+  /** Só o WhatsApp repareia; a casca monta `pedido_<ação>` para toda ação. */
+  | { readonly tipo: "pedido_reparear" }
   /** A senha volta no evento para a máquina mandá-la ao cofre sem guardá-la no estado. */
   | { readonly tipo: "teste_ok"; readonly mensagens: number; readonly naoLidas: number; readonly senha: Segredo }
   | { readonly tipo: "teste_falhou"; readonly motivo: FalhaDoImap; readonly detalhe: TextoExterno }
@@ -165,6 +167,7 @@ export function transicionarEmail(estado: EstadoEmail, evento: EventoEmail, agor
       return { estado, efeitos: [{ tipo: "sondar" }] };
     case "pedido_confirmar":
     case "pedido_recusar":
+    case "pedido_reparear":
       return parado(estado);
     case "teste_ok": {
       if (estado.fase !== "testando") return parado(estado);

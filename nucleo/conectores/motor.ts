@@ -157,10 +157,12 @@ const JA_ATENDIDA: { readonly [A in Acao]: readonly Fase[] } = {
   confirmar: ["conectado"],
   recusar: ["desconectado"],
   testar: [],
+  // O clique duplo cai na máquina, que compara a rodada.
+  reparear: [],
 };
 
 /** Ações cujo pedido falha quando o conector termina pedindo atenção. */
-const REVELA_O_PROBLEMA: readonly Acao[] = ["conectar", "testar", "confirmar"];
+const REVELA_O_PROBLEMA: readonly Acao[] = ["conectar", "reparear", "testar", "confirmar"];
 
 /** Despacha o pedido de uma ação e responde com o estado depois que os efeitos assentaram. */
 export async function pedir<C extends IdConector, V>(

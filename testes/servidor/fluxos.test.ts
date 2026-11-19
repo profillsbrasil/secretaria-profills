@@ -102,6 +102,32 @@ describe("fluxo completo por HTTP", () => {
     expect(await json(await p.agente("/api/conectores/whatsapp/cancelar", { method: "POST" }))).toMatchObject({ ok: true });
   });
 
+  test("WhatsApp: o agente pede Novo QR como pede conectar, e a API dele não entrega o QR nem o código", async () => {
+    const p = (palco = await subirPalco());
+    p.bancada.roteiro({ auth: [{ emitir: "qr_code", dados: { code: QR } }, { aguardar: "nunca" }], sync: [] });
+    await p.servidor.pronto;
+    const doPainel = await p.eventosDoPainel();
+    expect(await json(await p.agente("/api/conectores/whatsapp/conectar", postarJson({ meio: "qr" })))).toMatchObject({ ok: true, dados: { fase: "pareando" } });
+    await doPainel.ate((e) => e.conectores.whatsapp.estado.fase === "pareando" && e.conectores.whatsapp.estado.meio.tipo === "qr", "QR no painel");
+
+    p.bancada.roteiro({ auth: [{ emitir: "pair_code", dados: { phone: "5511912345678", code: "CANARIO-K7QP" } }, { aguardar: "nunca" }], sync: [] });
+    const pedido = await json(await p.agente("/api/conectores/whatsapp/reparear", postarJson({ meio: "codigo", telefone: "+5511912345678" })));
+    expect(pedido).toMatchObject({ ok: true, dados: { fase: "pareando" } });
+    expect(JSON.stringify(pedido)).not.toContain(QR);
+    await doPainel.ate((e) => e.conectores.whatsapp.estado.fase === "pareando" && e.conectores.whatsapp.estado.meio.tipo === "codigo", "código no painel");
+    const visto = JSON.stringify(await json(await p.agente("/api/estado")));
+    expect(visto).toContain("codigo_no_painel");
+    expect(visto).not.toContain("CANARIO-K7QP");
+    expect(visto).not.toContain(QR);
+
+    const rodadaVelha = await json(await p.agente("/api/conectores/whatsapp/reparear", postarJson({ meio: "qr", rodada: "2026-01-01T00:00:00.000Z" })));
+    expect(rodadaVelha).toMatchObject({ ok: true, dados: { fase: "pareando", meio: { tipo: "codigo_no_painel" } } });
+    const semCorpo = await json(await p.agente("/api/conectores/whatsapp/reparear", { method: "POST" }));
+    expect(semCorpo).toMatchObject({ status: 400, erro: { codigo: "entrada_invalida" } });
+    expect(await json(await p.agente("/api/conectores/whatsapp/cancelar", { method: "POST" }))).toMatchObject({ ok: true });
+    expect(await json(await p.agente("/api/conectores/whatsapp/reparear", postarJson({ meio: "qr" })))).toMatchObject({ status: 409, erro: { codigo: "acao_indisponivel" } });
+  });
+
   test("WhatsApp: telefone fora do formato volta como entrada inválida", async () => {
     const p = (palco = await subirPalco());
     const resposta = await json(await p.agente("/api/conectores/whatsapp/conectar", postarJson({ meio: "codigo", telefone: "11 9999" })));

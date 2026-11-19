@@ -73,6 +73,11 @@ describe("acoesPossiveis", () => {
     ).toEqual(["testar", "desconectar"]);
   });
 
+  test("o pareamento do WhatsApp oferece cancelar e reparear, com o QR na tela ou ainda sem ele", () => {
+    expect(acoesPossiveis({ fase: "pareando", meio: { tipo: "iniciando" }, expiraEm: AGORA })).toEqual(["cancelar", "reparear"]);
+    expect(acoesPossiveis({ fase: "pareando", meio: { tipo: "qr", qr: payloadQr("qr"), emitidoEm: AGORA }, expiraEm: AGORA })).toEqual(["cancelar", "reparear"]);
+  });
+
   test("atenção oferece a saída da tabela de problemas", () => {
     expect(
       acoesPossiveis({ fase: "atencao", problema: { codigo: "whatsapp_espelho_caindo", desde: AGORA }, conta: null }),
@@ -166,7 +171,7 @@ describe("visões do estado", () => {
     const agente = verComoAgente(painel);
     expect(JSON.stringify(agente)).not.toContain("CANARIO");
     expect(agente.conectores.whatsapp.estado).toEqual({ fase: "pareando", meio: { tipo: "qr_no_painel" }, expiraEm: AGORA });
-    expect(agente.conectores.whatsapp.acoes).toEqual(["cancelar"]);
+    expect(agente.conectores.whatsapp.acoes).toEqual(["cancelar", "reparear"]);
   });
 
   test("a visão do agente não leva o código de pareamento", () => {

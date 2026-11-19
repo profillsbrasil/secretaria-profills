@@ -31,6 +31,8 @@ export type SondagemWhatsapp =
 /** Eventos de domínio. A casca traduz cada linha NDJSON do wacli para um destes. */
 export type EventoWhatsapp =
   | { readonly tipo: "pedido_conectar"; readonly entrada: EntradaConectar["whatsapp"] }
+  /** `rodada` é o `expiraEm` do pareamento que o vendedor viu. Rodada que não é a atual não faz nada. */
+  | { readonly tipo: "pedido_reparear"; readonly entrada: EntradaConectar["whatsapp"]; readonly rodada: Instante }
   | Pedido
   | { readonly tipo: "qr_emitido"; readonly qr: PayloadQr }
   | { readonly tipo: "codigo_emitido"; readonly codigo: string; readonly telefone: Telefone }
@@ -61,6 +63,14 @@ const PARAR_PAREAMENTO: EfeitoWhatsapp = { tipo: "parar", papel: "whatsapp.parea
 const PARAR_ESPELHO: EfeitoWhatsapp = { tipo: "parar", papel: "whatsapp.espelho" };
 const DESCONECTADO: EstadoWhatsapp = { fase: "desconectado" };
 const GRAVAR_DESCONECTADO: EfeitoWhatsapp = { tipo: "gravar", estado: { fase: "desconectado" } };
+
+function iniciarPareamento(entrada: EntradaConectar["whatsapp"], agora: Instante): Resultado {
+  const expiraEm = somar(agora, PRAZOS_MS.pareamento);
+  return {
+    estado: { fase: "pareando", meio: { tipo: "iniciando" }, expiraEm },
+    efeitos: [{ tipo: "iniciar_pareamento", entrada }, { tipo: "armar_prazo", ate: expiraEm }],
+  };
+}
 
 function contaConfirmada(estado: EstadoWhatsapp): ContaWhatsapp | null {
   return estado.fase === "conectado" || estado.fase === "atencao" ? estado.conta : null;
@@ -122,12 +132,13 @@ function aplicarSondagem(estado: EstadoWhatsapp, resultado: SondagemWhatsapp, ag
 export function transicionarWhatsapp(estado: EstadoWhatsapp, evento: EventoWhatsapp, agora: Instante): Resultado {
   if (pedidoForaDeHora(estado, evento)) return parado(estado);
   switch (evento.tipo) {
-    case "pedido_conectar": {
-      const expiraEm = somar(agora, PRAZOS_MS.pareamento);
-      return {
-        estado: { fase: "pareando", meio: { tipo: "iniciando" }, expiraEm },
-        efeitos: [{ tipo: "iniciar_pareamento", entrada: evento.entrada }, { tipo: "armar_prazo", ate: expiraEm }],
-      };
+    case "pedido_conectar":
+      return iniciarPareamento(evento.entrada, agora);
+    case "pedido_reparear": {
+      if (estado.fase !== "pareando" || evento.rodada !== estado.expiraEm) return parado(estado);
+      // O `wacli auth` novo pega o lock da store: o antigo sai antes, e a fila do motor espera o `parar`.
+      const novo = iniciarPareamento(evento.entrada, agora);
+      return { estado: novo.estado, efeitos: [PARAR_PAREAMENTO, ...novo.efeitos] };
     }
     case "pedido_cancelar":
       // Depois de `ligou` a conta já está pareada nesta máquina: cancelar também a desliga.

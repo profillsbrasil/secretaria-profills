@@ -1107,9 +1107,10 @@ export const COMANDOS: readonly Comando[] = [
       if (resto.length > 0 || !ehDaLista(CONECTORES_UNICOS, id) || !ehDaLista(ACOES, acao)) {
         return errado(`Use \`conector <${CONECTORES_UNICOS.join("|")}> <${ACOES.join("|")}>\`.`);
       }
+      const pareia = id === "whatsapp" && (acao === "conectar" || acao === "reparear");
       const telefone = args.opcoes.telefone;
-      if (telefone === undefined) return certo({ id, acao, corpo: id === "whatsapp" && acao === "conectar" ? { meio: "qr" } : undefined });
-      if (id !== "whatsapp" || acao !== "conectar") return errado("`--telefone` só vale em `conector whatsapp conectar`.");
+      if (telefone === undefined) return certo({ id, acao, corpo: pareia ? { meio: "qr" } : undefined });
+      if (!pareia) return errado("`--telefone` só vale em `conector whatsapp conectar` e `conector whatsapp reparear`.");
       if (typeof telefone !== "string" || lerTelefone(telefone) === null) return errado("O telefone precisa estar no formato +5511999998888.");
       return certo({ id, acao, corpo: { meio: "codigo", telefone } });
     },

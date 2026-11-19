@@ -90,10 +90,7 @@ function descreverWhatsapp(estado: EstadoWhatsapp, agora: Date): SemTom {
       }
       break;
     case "sincronizando":
-      return descricao("Copiando as suas conversas para esta máquina.", {
-        detalhes: [`${numero(estado.mensagens)} mensagens copiadas até agora.`],
-        prazo: estado.expiraEm,
-      });
+      return descricao("Copiando as suas conversas para esta máquina.", { prazo: estado.expiraEm });
     case "confirmar_conta":
       return descricao("Confira se esta é a sua conta de trabalho.", { identidade: telefone(estado.conta) });
     case "conectado":
@@ -153,6 +150,20 @@ export function descrever<C extends IdConector>(id: C, estado: EstadoPorConector
   return { tom: TOM_DA_FASE[estado.fase], ...porConector[id](estado, agora) };
 }
 
+/** O centro do anel da sincronização: a contagem que o wacli dá, sem total nem porcentagem. */
+export interface TextoDoAnel {
+  readonly numero: string;
+  readonly unidade: "mensagem" | "mensagens";
+  readonly rotuloAcessivel: string;
+}
+
+export function textoDoAnel(mensagens: number): TextoDoAnel {
+  const numeroBr = numero(mensagens);
+  return mensagens === 1
+    ? { numero: numeroBr, unidade: "mensagem", rotuloAcessivel: `${numeroBr} mensagem copiada` }
+    : { numero: numeroBr, unidade: "mensagens", rotuloAcessivel: `${numeroBr} mensagens copiadas` };
+}
+
 /**
  * Como cada ação vira controle no cartão. O CRM conecta por navegação (sem popup bloqueado),
  * o e-mail por formulário e o WhatsApp deixa escolher entre QR e código. O resto é botão.
@@ -160,7 +171,7 @@ export function descrever<C extends IdConector>(id: C, estado: EstadoPorConector
 export type Controle = "botao" | "link_do_crm" | "formulario_do_email" | "escolha_do_whatsapp";
 
 const CONTROLES_ESPECIAIS: { readonly [C in IdConector]: Partial<Record<Acao, Controle>> } = {
-  whatsapp: { conectar: "escolha_do_whatsapp" },
+  whatsapp: { conectar: "escolha_do_whatsapp", reparear: "escolha_do_whatsapp" },
   crm: { conectar: "link_do_crm" },
   email: { conectar: "formulario_do_email" },
 };
@@ -179,6 +190,7 @@ const POSICAO_NO_RODAPE: { readonly [A in Acao]: number } = {
   cancelar: 2,
   testar: 3,
   conectar: 4,
+  reparear: 4,
   confirmar: 5,
 };
 
