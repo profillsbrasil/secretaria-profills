@@ -263,6 +263,12 @@ const corpoDoWhatsapp = z.discriminatedUnion("meio", [
   z.strictObject({ meio: z.literal("codigo"), telefone: z.string() }),
 ]);
 
+const RODADA = z.iso.datetime().optional();
+const corpoDoReparear = z.discriminatedUnion("meio", [
+  z.strictObject({ meio: z.literal("qr"), rodada: RODADA }),
+  z.strictObject({ meio: z.literal("codigo"), telefone: z.string(), rodada: RODADA }),
+]);
+
 const SENHA = z.string().min(1);
 
 /** A forma do corpo; o que cada campo pode valer, a fachada do e-mail confere. */
@@ -393,7 +399,7 @@ interface EmailAchado {
 }
 
 /** As ações que levam a uma fase que só existe em memória (pareando, autorizando, testando) e se perderia no restart. */
-const COMECA_FASE_EM_MEMORIA: readonly string[] = ["conectar", "testar"];
+const COMECA_FASE_EM_MEMORIA: readonly string[] = ["conectar", "reparear", "testar"];
 /** Ações de uma conta de e-mail. `remover` e `mudar` não são da máquina: apagam a conta ou trocam rótulo e janela. */
 const ACOES_DA_CONTA = ["conectar", "cancelar", "testar", "desconectar", "remover", "mudar"] as const;
 type AcaoDaConta = (typeof ACOES_DA_CONTA)[number];
@@ -458,13 +464,15 @@ function lerEntrada(id: IdConectorUnico, acao: Acao, corpo: unknown, chamador: C
   if (id === "whatsapp" && chamador !== "painel" && DECISOES_DO_VENDEDOR.includes(acao)) {
     return { ok: false, erro: falha("so_no_painel", "Confirmar, recusar e desconectar a conta do WhatsApp são decisões do vendedor, no painel.") };
   }
-  if (acao !== "conectar") return corpo === undefined ? { ok: true, dados: undefined } : invalida(`A ação "${acao}" não leva corpo.`);
-  if (id === "crm") return { ok: false, erro: falha("so_no_painel", "O login do CRM começa no botão Conectar do painel.") };
-  const lido = corpoDoWhatsapp.safeParse(corpo);
+  if (id === "crm" && acao === "conectar") return { ok: false, erro: falha("so_no_painel", "O login do CRM começa no botão Conectar do painel.") };
+  if (id !== "whatsapp" || (acao !== "conectar" && acao !== "reparear")) {
+    return corpo === undefined ? { ok: true, dados: undefined } : invalida(`A ação "${acao}" não leva corpo.`);
+  }
+  const lido = (acao === "conectar" ? corpoDoWhatsapp : corpoDoReparear).safeParse(corpo);
   if (!lido.success) return invalida('Mande {"meio":"qr"} ou {"meio":"codigo","telefone":"+5511999998888"}.');
   if (lido.data.meio === "qr") return { ok: true, dados: lido.data };
   const telefone = lerTelefone(lido.data.telefone);
-  return telefone === null ? invalida("O telefone precisa estar no formato +5511999998888.") : { ok: true, dados: { meio: "codigo", telefone } };
+  return telefone === null ? invalida("O telefone precisa estar no formato +5511999998888.") : { ok: true, dados: { ...lido.data, telefone } };
 }
 
 function ehDaLista<T extends string>(lista: readonly T[], valor: string | undefined): valor is T {

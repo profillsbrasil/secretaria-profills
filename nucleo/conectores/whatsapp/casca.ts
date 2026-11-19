@@ -15,6 +15,7 @@ import {
   type EntradaConectar,
   type EstadoWhatsapp,
   type EventoWhatsapp,
+  type Instante,
   type LeituraDeWhatsapp,
   type Mensagem,
   type ParDeIdentidade,
@@ -40,18 +41,27 @@ import { lerConversas, lerIdentidades, lerLeituraDoAgente, lerMensagemUnica, ler
 
 const LIMITES_MS = { sondagem: 15_000, encerrar: 30_000, leitura: 60_000 } as const;
 
+const RODADA = z.iso.datetime().transform((texto) => texto as Instante);
+
 const entradaConectar = z
   .union([
-    z.object({ meio: z.literal("qr") }),
-    z.object({ meio: z.literal("codigo"), telefone: z.string().transform((texto) => lerTelefone(texto)) }),
+    z.object({ meio: z.literal("qr"), rodada: RODADA.optional() }),
+    z.object({ meio: z.literal("codigo"), telefone: z.string().transform((texto) => lerTelefone(texto)), rodada: RODADA.optional() }),
   ])
   .optional();
 
-function lerEntrada(dados: unknown): EntradaConectar["whatsapp"] | null {
+interface PedidoDePareamento {
+  readonly entrada: EntradaConectar["whatsapp"];
+  /** Só o `reparear` lê. `null` é a rodada atual. */
+  readonly rodada: Instante | null;
+}
+
+function lerEntrada(dados: unknown): PedidoDePareamento | null {
   const lida = entradaConectar.safeParse(dados ?? undefined);
   if (!lida.success) return null;
-  if (lida.data === undefined || lida.data.meio === "qr") return { meio: "qr" };
-  return lida.data.telefone === null ? null : { meio: "codigo", telefone: lida.data.telefone };
+  const rodada = lida.data?.rodada ?? null;
+  if (lida.data === undefined || lida.data.meio === "qr") return { entrada: { meio: "qr" }, rodada };
+  return lida.data.telefone === null ? null : { entrada: { meio: "codigo", telefone: lida.data.telefone }, rodada };
 }
 
 export interface CascaWhatsapp {
@@ -254,10 +264,14 @@ export function criarCascaWhatsapp(deps: Dependencias, aoMudar: () => void): Cas
   return {
     motor,
     async agir(acao, dados) {
-      if (acao !== "conectar") return pedir(motor, acao, { tipo: `pedido_${acao}` });
-      const entrada = lerEntrada(dados);
-      if (entrada === null) return falha("entrada_invalida", "O telefone precisa estar no formato +5511999998888.");
-      return pedir(motor, acao, { tipo: "pedido_conectar", entrada });
+      if (acao !== "conectar" && acao !== "reparear") return pedir(motor, acao, { tipo: `pedido_${acao}` });
+      const lido = lerEntrada(dados);
+      if (lido === null) return falha("entrada_invalida", "O telefone precisa estar no formato +5511999998888.");
+      if (acao === "conectar") return pedir(motor, acao, { tipo: "pedido_conectar", entrada: lido.entrada });
+      const atual = motor.estado();
+      // Fora do pareamento a rodada não importa: `pedir` responde `acao_indisponivel` antes da máquina.
+      const rodada = lido.rodada ?? (atual.fase === "pareando" ? atual.expiraEm : ambiente.agora());
+      return pedir(motor, acao, { tipo: "pedido_reparear", entrada: lido.entrada, rodada });
     },
     reconciliar,
     ler: (args) => lerComoAgente(args),

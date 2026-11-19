@@ -1,10 +1,12 @@
 import { describe, expect, test } from "bun:test";
 import { Segredo } from "../../nucleo/cofre";
 import {
+  PRAZOS_MS,
   PROBLEMAS,
   PROVEDORES_DE_EMAIL,
   acoesPossiveis,
   payloadQr,
+  somar,
   textoExterno,
   transicionarCrm,
   transicionarEmail,
@@ -52,7 +54,8 @@ interface Modelo<E extends EstadoConector, V, F> {
   readonly eventos: readonly V[];
   readonly prazo: V;
   readonly transicionar: (estado: E, evento: V, agora: Instante) => Transicao<E, F>;
-  readonly pedido: (acao: Acao) => V;
+  /** O pedido de cada ação, como o painel o monta ao ver o estado. */
+  readonly pedido: (acao: Acao, estado: E) => V;
   readonly feliz: (efeito: F) => readonly V[];
 }
 
@@ -79,7 +82,7 @@ function alcancaveis<E extends EstadoConector, V, F>(modelo: Modelo<E, V, F>): E
 
 /** Aplica a ação e tudo o que o serviço feliz responde, até a máquina parar de mudar. */
 function agir<E extends EstadoConector, V, F>(modelo: Modelo<E, V, F>, estado: E, acao: Acao): E {
-  const pendentes: V[] = [modelo.pedido(acao)];
+  const pendentes: V[] = [modelo.pedido(acao, estado)];
   let atual = estado;
   for (let passos = 0; pendentes.length > 0; passos++) {
     if (passos > 50) throw new Error("respostas em laço");
@@ -125,6 +128,8 @@ describe("nenhum estado sem saída", () => {
     eventos: [
       { tipo: "pedido_conectar", entrada: { meio: "qr" } },
       { tipo: "pedido_conectar", entrada: { meio: "codigo", telefone: CONTA.telefone } },
+      { tipo: "pedido_reparear", entrada: { meio: "qr" }, rodada: somar(AGORA, PRAZOS_MS.pareamento) },
+      { tipo: "pedido_reparear", entrada: { meio: "codigo", telefone: CONTA.telefone }, rodada: somar(AGORA, PRAZOS_MS.pareamento) },
       { tipo: "pedido_cancelar" },
       { tipo: "pedido_testar" },
       { tipo: "pedido_desconectar" },
@@ -149,7 +154,11 @@ describe("nenhum estado sem saída", () => {
     ],
     prazo: { tipo: "prazo_vencido" },
     transicionar: transicionarWhatsapp,
-    pedido: (acao) => (acao === "conectar" ? { tipo: "pedido_conectar", entrada: { meio: "qr" } } : { tipo: `pedido_${acao}` }),
+    pedido: (acao, estado) => {
+      if (acao === "conectar") return { tipo: "pedido_conectar", entrada: { meio: "qr" } };
+      if (acao === "reparear") return { tipo: "pedido_reparear", entrada: { meio: "qr" }, rodada: estado.fase === "pareando" ? estado.expiraEm : AGORA };
+      return { tipo: `pedido_${acao}` };
+    },
     feliz: (efeito) => {
       if (efeito.tipo === "iniciar_pareamento") {
         return [

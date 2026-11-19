@@ -68,7 +68,7 @@ export type IdConector = (typeof CONECTORES)[number];
 export const CONECTORES_UNICOS = ["whatsapp", "crm"] as const;
 export type IdConectorUnico = (typeof CONECTORES_UNICOS)[number];
 
-export const ACOES = ["conectar", "cancelar", "testar", "desconectar", "confirmar", "recusar"] as const;
+export const ACOES = ["conectar", "cancelar", "testar", "desconectar", "confirmar", "recusar", "reparear"] as const;
 /** O que o vendedor pode fazer num cartão. Cada ação vira um botão e um comando do CLI. */
 export type Acao = (typeof ACOES)[number];
 
@@ -79,6 +79,7 @@ export const ROTULOS_DAS_ACOES: { readonly [A in Acao]: string } = {
   desconectar: "Desconectar",
   confirmar: "Sim, é a minha conta",
   recusar: "Não é a minha conta",
+  reparear: "Novo QR",
 };
 
 type SaidaDoProblema = readonly [Acao, ...Acao[]];
@@ -342,7 +343,7 @@ export const FASES = {
 
 const ACOES_POR_FASE = {
   desconectado: ["conectar"],
-  pareando: ["cancelar"],
+  pareando: ["cancelar", "reparear"],
   sincronizando: ["cancelar"],
   autorizando: ["cancelar"],
   testando: ["cancelar"],

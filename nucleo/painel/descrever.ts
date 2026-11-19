@@ -160,7 +160,7 @@ export function descrever<C extends IdConector>(id: C, estado: EstadoPorConector
 export type Controle = "botao" | "link_do_crm" | "formulario_do_email" | "escolha_do_whatsapp";
 
 const CONTROLES_ESPECIAIS: { readonly [C in IdConector]: Partial<Record<Acao, Controle>> } = {
-  whatsapp: { conectar: "escolha_do_whatsapp" },
+  whatsapp: { conectar: "escolha_do_whatsapp", reparear: "escolha_do_whatsapp" },
   crm: { conectar: "link_do_crm" },
   email: { conectar: "formulario_do_email" },
 };
@@ -179,6 +179,7 @@ const POSICAO_NO_RODAPE: { readonly [A in Acao]: number } = {
   cancelar: 2,
   testar: 3,
   conectar: 4,
+  reparear: 4,
   confirmar: 5,
 };
 

@@ -351,3 +351,59 @@ describe("transicionarWhatsapp", () => {
     expect(transicionarWhatsapp(estado, evento, AGORA)).toEqual({ estado, efeitos: [] });
   });
 });
+
+describe("reparear (Novo QR)", () => {
+  const UM_MIN_DEPOIS = "2026-11-11T12:01:00.000Z" as Instante;
+  const EM_4_MIN = "2026-11-11T12:04:00.000Z" as Instante;
+  const comQr: EstadoWhatsapp = { fase: "pareando", meio: { tipo: "qr", qr: QR, emitidoEm: AGORA }, expiraEm: EM_3_MIN };
+  const reparear = (rodada: Instante, entrada: Extract<EventoWhatsapp, { tipo: "pedido_reparear" }>["entrada"] = { meio: "qr" }): EventoWhatsapp => ({
+    tipo: "pedido_reparear",
+    entrada,
+    rodada,
+  });
+
+  test("com a rodada atual para o processo, abre outro pareamento e arma o prazo novo, nessa ordem", () => {
+    expect(transicionarWhatsapp(comQr, reparear(EM_3_MIN), UM_MIN_DEPOIS)).toEqual({
+      estado: { fase: "pareando", meio: { tipo: "iniciando" }, expiraEm: EM_4_MIN },
+      efeitos: [PARAR_PAREAMENTO, { tipo: "iniciar_pareamento", entrada: { meio: "qr" } }, { tipo: "armar_prazo", ate: EM_4_MIN }],
+    });
+  });
+
+  test("com o QR na tela, pede o código pelo número no lugar dele", () => {
+    const entrada = { meio: "codigo", telefone: CONTA.telefone } as const;
+    expect(transicionarWhatsapp(comQr, reparear(EM_3_MIN, entrada), UM_MIN_DEPOIS)).toEqual({
+      estado: { fase: "pareando", meio: { tipo: "iniciando" }, expiraEm: EM_4_MIN },
+      efeitos: [PARAR_PAREAMENTO, { tipo: "iniciar_pareamento", entrada }, { tipo: "armar_prazo", ate: EM_4_MIN }],
+    });
+  });
+
+  test("rodada que já passou não faz nada: o clique duplo não sobe dois processos", () => {
+    expect(transicionarWhatsapp(comQr, reparear(ANTES), UM_MIN_DEPOIS)).toEqual({ estado: comQr, efeitos: [] });
+  });
+
+  test.each([
+    ["desconectado", desconectado],
+    ["sincronizando", sincronizando],
+    ["confirmar a conta", confirmando],
+    ["conectado", conectado],
+    ["atenção", revogado],
+  ] as const)("fora do pareamento (%s) não faz nada", (_nome, estado) => {
+    expect(transicionarWhatsapp(estado, reparear(EM_3_MIN), AGORA)).toEqual({ estado, efeitos: [] });
+  });
+
+  test("o prazo da rodada anterior não derruba o pareamento novo", () => {
+    const novo = transicionarWhatsapp(comQr, reparear(EM_3_MIN), UM_MIN_DEPOIS).estado;
+    expect(transicionarWhatsapp(novo, { tipo: "prazo_vencido" }, EM_3_MIN)).toEqual({ estado: novo, efeitos: [] });
+  });
+
+  test.each([
+    ["prazo vencido", comQr, { tipo: "prazo_vencido" }, DEPOIS_DE_1_HORA],
+    ["cancelar", comQr, { tipo: "pedido_cancelar" }, AGORA],
+    ["desconectar", conectado, { tipo: "pedido_desconectar" }, AGORA],
+    ["recusar", confirmando, { tipo: "pedido_recusar" }, AGORA],
+  ] as const)("%s leva a desconectado sem abrir pareamento", (_nome, estado, evento, agora) => {
+    const { estado: depois, efeitos } = transicionarWhatsapp(estado, evento, agora);
+    expect(depois).toEqual(desconectado);
+    expect(efeitos.filter((efeito) => efeito.tipo === "iniciar_pareamento")).toEqual([]);
+  });
+});

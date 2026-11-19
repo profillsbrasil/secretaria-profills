@@ -5,7 +5,7 @@
  * |--------|-----------------------------|-------------------------------------|--------------------------------------------|
  * | GET    | /api/eventos                | (SSE)                               | `event: estado`, `data: EstadoPainel`      |
  * | GET    | /oauth/crm/iniciar          | (navegação em nova aba, não fetch)  | 303 para o login do CRM                    |
- * | POST   | /api/conectores/:id/:acao   | `CorpoConectar[id]` ou nenhum       | `Saida<EstadoPorConector[id]>`             |
+ * | POST   | /api/conectores/:id/:acao   | `CorpoConectar[id]`, `CorpoReparear` ou nenhum | `Saida<EstadoPorConector[id]>`  |
  * | POST   | /api/email/contas           | `CorpoDeAdicionarEmail`             | `Saida<VisaoDaContaEmail>`                 |
  * | POST   | /api/email/contas/:id/:acao | `CorpoDaAcaoDoEmail[acao]` ou nenhum | `Saida<VisaoDaContaEmail>`; `remover` dá `Saida<{ removida }>` |
  * | POST   | /api/email/pular            | `{ pulado: boolean }`               | `Saida<VisaoDoEmail>`                      |
@@ -53,6 +53,7 @@ import {
   type EstadoPorConector,
   type IdConectorUnico,
   type IdContaEmail,
+  type Instante,
   type JanelaDias,
   type ProvedorEmail,
   type Saida,
@@ -84,10 +85,17 @@ export interface CorpoConectar {
   readonly whatsapp: EntradaConectar["whatsapp"];
 }
 
-/** Pedido de ação que o painel faz. Só `conectar` leva corpo. */
+/**
+ * Corpo de `POST /api/conectores/whatsapp/reparear`: o do `conectar` e a rodada, o `expiraEm` do pareamento
+ * que o vendedor viu. O clique duplo manda a mesma rodada duas vezes, e o servidor reinicia uma vez só.
+ */
+export type CorpoReparear = CorpoConectar["whatsapp"] & { readonly rodada: Instante };
+
+/** Pedido de ação que o painel faz. Só `conectar` e `reparear` levam corpo. */
 export type PedidoDeAcao =
   | { readonly id: "whatsapp"; readonly acao: "conectar"; readonly corpo: CorpoConectar["whatsapp"] }
-  | { readonly id: IdConectorUnico; readonly acao: Exclude<Acao, "conectar"> };
+  | { readonly id: "whatsapp"; readonly acao: "reparear"; readonly corpo: CorpoReparear }
+  | { readonly id: IdConectorUnico; readonly acao: Exclude<Acao, "conectar" | "reparear"> };
 
 export type RespostaDaAcao<C extends IdConectorUnico = IdConectorUnico> = Saida<EstadoPorConector[C]>;
 

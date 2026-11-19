@@ -24,6 +24,8 @@ export type MotivoDaRecusa = "app_nao_liberado" | "acesso_negado" | "retorno_inv
 export type EventoCrm =
   | { readonly tipo: "pedido_conectar" }
   | Pedido
+  /** Só o WhatsApp repareia; a casca monta `pedido_<ação>` para toda ação. */
+  | { readonly tipo: "pedido_reparear" }
   | { readonly tipo: "retorno_ok"; readonly conexaoExpiraEm: Instante; readonly ferramentas: number }
   /** A autorização falhou: descoberta sem resposta, `invalid_client`, `access_denied`, `state` ou `iss` errados. */
   | { readonly tipo: "autorizacao_recusada"; readonly motivo: MotivoDaRecusa; readonly detalhe: TextoExterno }
@@ -100,6 +102,7 @@ export function transicionarCrm(estado: EstadoCrm, evento: EventoCrm, agora: Ins
       return { estado, efeitos: [{ tipo: "sondar" }] };
     case "pedido_confirmar":
     case "pedido_recusar":
+    case "pedido_reparear":
       return parado(estado);
     case "retorno_ok": {
       if (estado.fase !== "autorizando") return parado(estado);

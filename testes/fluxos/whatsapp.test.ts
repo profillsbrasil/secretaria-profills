@@ -702,3 +702,40 @@ describe("WhatsApp: leituras do servidor, em tipos de domínio", () => {
     }
   });
 });
+
+describe("WhatsApp: Novo QR", () => {
+  test("troca o processo do pareamento, e dois pedidos da mesma rodada sobem um só", async () => {
+    const b = nova();
+    b.roteiro({ auth: [{ emitir: "qr_code", dados: { code: QR_1 } }, { aguardar: "nunca" }], sync: [] });
+    const conectores = b.ligar();
+    await conectores.pronto;
+    expect((await conectores.agir("whatsapp", "conectar", { meio: "qr" })).ok).toBe(true);
+    const primeiro = await esperar(conectores, (e) => e.whatsapp.fase === "pareando" && e.whatsapp.meio.tipo === "qr", "primeiro QR");
+    const rodada = primeiro.whatsapp.fase === "pareando" ? primeiro.whatsapp.expiraEm : null;
+
+    b.roteiro({ auth: [{ emitir: "qr_code", dados: { code: QR_2 } }, { aguardar: "nunca" }], sync: [] });
+    const pedidos = await Promise.all([
+      conectores.agir("whatsapp", "reparear", { meio: "qr", rodada }),
+      conectores.agir("whatsapp", "reparear", { meio: "qr", rodada }),
+    ]);
+    expect(pedidos.map((pedido) => pedido.ok && pedido.dados.estado.fase)).toEqual(["pareando", "pareando"]);
+    const novo = await esperar(
+      conectores,
+      (e) => e.whatsapp.fase === "pareando" && e.whatsapp.meio.tipo === "qr" && e.whatsapp.meio.qr === QR_2,
+      "QR do pareamento novo",
+    );
+    expect(novo.whatsapp.fase === "pareando" && novo.whatsapp.expiraEm).not.toBe(rodada);
+    expect(pareamentos(b)).toHaveLength(2);
+    expect(b.chamadas().filter((chamada) => chamada.args[0] === "auth" && vivo(chamada.pid))).toHaveLength(1);
+
+    expect((await conectores.agir("whatsapp", "cancelar")).ok).toBe(true);
+  });
+
+  test("fora do pareamento responde acao_indisponivel e não abre processo", async () => {
+    const b = nova();
+    const conectores = b.ligar();
+    await conectores.pronto;
+    expect(await conectores.agir("whatsapp", "reparear", { meio: "qr" })).toMatchObject({ ok: false, erro: { codigo: "acao_indisponivel" } });
+    expect(pareamentos(b)).toEqual([]);
+  });
+});

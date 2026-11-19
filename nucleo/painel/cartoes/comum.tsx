@@ -15,13 +15,13 @@ export interface PropsDoConector<C extends IdConectorUnico> {
 }
 
 /**
- * Os botões do estado, na ordem do rodapé. O controle especial do conectar (link, escolha) o cartão
- * passa em `conectar` e ele entra no lugar do botão.
+ * Os botões do estado, na ordem do rodapé. O controle especial do conectar e do reparear (link, escolha)
+ * o cartão passa em `conectar` e ele entra no lugar do botão.
  */
 export function AcoesDoRodape(props: { id: IdConectorUnico; acoes: readonly Acao[]; livre: boolean; agir: (pedido: PedidoDeAcao) => void; conectar: ReactNode }) {
   const { id, livre, agir } = props;
   return ordemNoRodape(props.acoes).map((acao) =>
-    acao === "conectar" || controleDaAcao(id, acao) !== "botao" ? (
+    acao === "conectar" || acao === "reparear" || controleDaAcao(id, acao) !== "botao" ? (
       <Fragment key={acao}>{props.conectar}</Fragment>
     ) : (
       <BotaoDeAcao key={acao} acao={acao} desabilitado={!livre} aoClicar={() => agir({ id, acao })} />

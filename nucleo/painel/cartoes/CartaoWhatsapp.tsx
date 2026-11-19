@@ -1,7 +1,7 @@
 import { LoaderCircle, MessageCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useId, useState, type FormEvent } from "react";
-import { ROTULOS_DAS_ACOES, type EstadoWhatsapp } from "../../dominio";
+import { ROTULOS_DAS_ACOES, type EntradaConectar, type EstadoWhatsapp } from "../../dominio";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,19 +54,34 @@ function Pareamento({ estado, agora }: { estado: Extract<EstadoWhatsapp, { fase:
   }
 }
 
-/** A ação conectar do WhatsApp: QR por padrão, ou código pelo número de telefone. */
-function EscolhaDeConexao({ livre, agir }: Pick<PropsDoConector<"whatsapp">, "livre" | "agir">) {
+/**
+ * Conectar e reparear do WhatsApp: QR por padrão, ou código pelo número de telefone. Fora do pareamento os
+ * botões mandam `conectar`; no pareamento, `reparear` com a rodada na tela, que troca o QR ou o código por outro.
+ */
+function EscolhaDeConexao({ estado, livre, agir }: Pick<PropsDoConector<"whatsapp">, "estado" | "livre" | "agir">) {
   const [pedirNumero, setPedirNumero] = useState(false);
   const [erroDoNumero, setErroDoNumero] = useState<string | null>(null);
   const idDoCampo = useId();
+  const pareando = estado.fase === "pareando" ? estado : null;
+
+  const parear = (entrada: EntradaConectar["whatsapp"]) =>
+    agir(pareando === null ? { id: "whatsapp", acao: "conectar", corpo: entrada } : { id: "whatsapp", acao: "reparear", corpo: { ...entrada, rodada: pareando.expiraEm } });
 
   const enviarNumero = (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
     const telefone = lerTelefoneDigitado(String(new FormData(evento.currentTarget).get("telefone") ?? ""));
     if (telefone === null) return setErroDoNumero("Digite o número com DDD, como (11) 98765-4321.");
     setErroDoNumero(null);
-    agir({ id: "whatsapp", acao: "conectar", corpo: { meio: "codigo", telefone } });
+    parear({ meio: "codigo", telefone });
   };
+
+  if (!pedirNumero && pareando?.meio.tipo === "codigo") {
+    return (
+      <Button variant="outline" disabled={!livre} onClick={() => parear({ meio: "qr" })}>
+        Voltar ao QR
+      </Button>
+    );
+  }
 
   if (!pedirNumero) {
     return (
@@ -74,8 +89,8 @@ function EscolhaDeConexao({ livre, agir }: Pick<PropsDoConector<"whatsapp">, "li
         <Button variant="outline" disabled={!livre} onClick={() => setPedirNumero(true)}>
           Usar código no lugar do QR
         </Button>
-        <Button disabled={!livre} onClick={() => agir({ id: "whatsapp", acao: "conectar", corpo: { meio: "qr" } })}>
-          {ROTULOS_DAS_ACOES.conectar}
+        <Button variant={pareando === null ? "default" : "outline"} disabled={!livre} onClick={() => parear({ meio: "qr" })}>
+          {estado.fase === "atencao" ? ROTULOS_DAS_ACOES.conectar : ROTULOS_DAS_ACOES.reparear}
         </Button>
       </>
     );
@@ -120,7 +135,15 @@ export function CartaoWhatsapp({ estado, acoes, agora, livre, erro, agir }: Prop
       Icone={MessageCircle}
       descricao={descricao}
       erro={erro}
-      rodape={<AcoesDoRodape id="whatsapp" acoes={acoes} livre={livre} agir={agir} conectar={<EscolhaDeConexao livre={livre} agir={agir} />} />}
+      rodape={
+        <AcoesDoRodape
+          id="whatsapp"
+          acoes={acoes}
+          livre={livre}
+          agir={agir}
+          conectar={<EscolhaDeConexao key={estado.fase === "pareando" ? estado.expiraEm : estado.fase} estado={estado} livre={livre} agir={agir} />}
+        />
+      }
     >
       {estado.fase === "pareando" && <Pareamento estado={estado} agora={agora} />}
       {estado.fase === "sincronizando" && (
