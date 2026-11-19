@@ -150,7 +150,7 @@ describe("skills da Secretária", () => {
   });
 
   test("o README e o INSTALAR.md instalam no Windows por arquivo, sem `iex`: o Defender barra a linha que baixa e executa", () => {
-    const baixar = "Invoke-WebRequest -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1";
+    const baixar = "Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1";
     const rodar = "powershell -NoProfile -ExecutionPolicy Bypass -File .\\instalar.ps1";
     for (const arquivo of ["README.md", "INSTALAR.md"]) {
       const linhas = lerNaRaiz(arquivo).split("\n");

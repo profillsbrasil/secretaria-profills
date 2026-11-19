@@ -25,7 +25,7 @@ curl -fsSL https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/
 Windows, no PowerShell, em dois passos. O primeiro baixa o script para o arquivo `instalar.ps1`, e o segundo roda esse arquivo:
 
 ```
-Invoke-WebRequest -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1
+Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1
 ```
 
 ```

@@ -10,14 +10,14 @@ Este arquivo cobre só o começo, fora da pasta da Secretária. O endereço ofic
    Windows, no PowerShell, em dois passos: baixe o script para um arquivo e rode o arquivo.
 
    ```
-   Invoke-WebRequest -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1
+   Invoke-WebRequest -UseBasicParsing -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1
    ```
 
    ```
    powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar.ps1
    ```
 
-   O `-ExecutionPolicy Bypass` vale só para esse comando: sem ele, o Windows recusa o arquivo. O `instalar.ps1` fica na pasta pessoal. Depois que o script termina, ele pode ser apagado: a Secretária não usa esse arquivo.
+   O `-UseBasicParsing` evita a pergunta de segurança que o Windows PowerShell 5.1 faz ao baixar. O `-ExecutionPolicy Bypass` vale só para esse comando: sem ele, o Windows recusa o arquivo. O `instalar.ps1` fica na pasta pessoal. Depois que o script termina, ele pode ser apagado: a Secretária não usa esse arquivo.
 
    Se aparecer "Acesso negado" ou "UseShellExecute" antes de o instalador começar, o antivírus barrou o comando. Não repita a mesma linha, não peça ao vendedor para desligar o antivírus nem para criar exceção nele. Siga pelos dois comandos acima. Diga ao vendedor que a proteção do Windows barrou o comando e que o "Histórico de proteção", na Segurança do Windows, mostra o bloqueio.
 
