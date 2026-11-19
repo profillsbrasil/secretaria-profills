@@ -7,6 +7,9 @@
  * `&crm=<fixture>` escolhe o que a sincronização teria lido (`/cenas` lista); `&sinc=lento` ou
  * `&sinc=parcial` mudam a rodada do botão Sincronizar. Os passos dela chegam pelo SSE.
  *
+ * O WhatsApp responde às ações pela máquina de verdade, sobre o estado da cena: `conectar` e `reparear` mostram
+ * "preparando" e, depois de um instante, um QR novo ou um código. Por isso `tudo-desconectado` mostra o QR
+ * aparecer sozinho ao abrir Conexões; com `&falha=1` o cartão fica no quadro vazio.
  * O e-mail responde às rotas de verdade sobre um estado em memória por cena, empurrado pelo SSE.
  * O teste do login leva 3 s e passa, menos com a senha `errada`. `&teste=lento` deixa o teste
  * rodando até alguém cancelar. A gaveta abre pelo hash: `#/conexoes/email/nova`,
@@ -22,13 +25,19 @@ import {
   diaEm,
   falha,
   instante,
+  lerTelefone,
   montarEstadoPainel,
   ok,
   saida,
   statusHttp,
+  transicionarWhatsapp,
   verEmail,
   type ContaEmailComEstado,
+  type EntradaConectar,
   type EstadoDoEmail,
+  type EstadoWhatsapp,
+  type EventoWhatsapp,
+  type Instante,
   type EstadoPainel,
   type IdContaEmail,
   type RetratoDosConectores,
@@ -115,6 +124,49 @@ function estadoDoPalco(palco: Palco): EstadoPainel {
 function mudarEmail(palco: Palco, email: EstadoDoEmail): void {
   palco.retrato = { ...palco.retrato, email };
   for (const avisar of palco.assinantes) avisar();
+}
+
+function mudarWhatsapp(palco: Palco, whatsapp: EstadoWhatsapp): void {
+  palco.retrato = { ...palco.retrato, whatsapp };
+  for (const avisar of palco.assinantes) avisar();
+}
+
+let qrsEmitidos = 100;
+
+function pedidoDoWhatsapp(acao: string, corpo: unknown, atual: EstadoWhatsapp): EventoWhatsapp | null {
+  const lido = (corpo ?? {}) as { meio?: unknown; telefone?: unknown; rodada?: unknown };
+  const telefone = typeof lido.telefone === "string" ? lerTelefone(lido.telefone) : null;
+  const entrada: EntradaConectar["whatsapp"] = lido.meio === "codigo" && telefone !== null ? { meio: "codigo", telefone } : { meio: "qr" };
+  switch (acao) {
+    case "conectar":
+      return { tipo: "pedido_conectar", entrada };
+    case "reparear": {
+      const rodada = typeof lido.rodada === "string" ? (lido.rodada as Instante) : atual.fase === "pareando" ? atual.expiraEm : instante(new Date());
+      return { tipo: "pedido_reparear", entrada, rodada };
+    }
+    case "cancelar":
+    case "testar":
+    case "desconectar":
+    case "confirmar":
+    case "recusar":
+      return { tipo: `pedido_${acao}` };
+    default:
+      return null;
+  }
+}
+
+/** Aplica o pedido na máquina de verdade. Do processo do wacli, só o QR ou o código chegam, um instante depois. */
+function agirNoWhatsapp(palco: Palco, acao: string, corpo: unknown): void {
+  const evento = pedidoDoWhatsapp(acao, corpo, palco.retrato.whatsapp);
+  if (evento === null) return;
+  const { estado, efeitos } = transicionarWhatsapp(palco.retrato.whatsapp, evento, instante(new Date()));
+  if (estado !== palco.retrato.whatsapp) mudarWhatsapp(palco, estado);
+  for (const efeito of efeitos) {
+    if (efeito.tipo !== "iniciar_pareamento") continue;
+    const emitido: EventoWhatsapp =
+      efeito.entrada.meio === "qr" ? { tipo: "qr_emitido", qr: qrDaRodada((qrsEmitidos += 1)) } : { tipo: "codigo_emitido", codigo: "K7QD-2MXP", telefone: efeito.entrada.telefone };
+    setTimeout(() => mudarWhatsapp(palco, transicionarWhatsapp(palco.retrato.whatsapp, emitido, instante(new Date())).estado), 800);
+  }
 }
 
 const visaoDaConta = (conta: ContaEmailComEstado) => verEmail({ pulado: false, contas: [conta] }).contas[0]!;
@@ -278,6 +330,7 @@ const servidor = Bun.serve({
         const resumo = corpo === null ? "sem corpo" : `corpo com ${Object.keys(corpo).join(", ")}`;
         await Bun.write(Bun.stdout, `POST ${new URL(req.url).pathname} (${resumo})\n`);
         const resultado = parametrosDaPagina(req).get("falha") === "1" ? falha("acao_indisponivel") : ok(null);
+        if (resultado.ok && req.params.id === "whatsapp") agirNoWhatsapp(palcoDoPedido(req), req.params.acao, corpo);
         const status = resultado.ok ? 200 : statusHttp(resultado.erro);
         return Response.json(saida(resultado), { status });
       },
