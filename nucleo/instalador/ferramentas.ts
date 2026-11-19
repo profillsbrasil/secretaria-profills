@@ -1,7 +1,8 @@
-import { chmodSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { inflateRawSync } from "node:zlib";
 import { z } from "zod";
+import { trocarPorRename } from "../atualizador";
 
 /** `plataforma-arquitetura` com os nomes do Node: `linux-x64`, `darwin-arm64`, `win32-x64`. */
 export type Alvo = `${NodeJS.Platform}-${NodeJS.Architecture}`;
@@ -149,7 +150,7 @@ export async function instalarExecutavel(opcoes: {
     await Bun.write(novo, executavel);
     if (opcoes.plataforma !== "win32") chmodSync(novo, 0o755);
     await opcoes.conferir(novo);
-    renameSync(novo, opcoes.destino);
+    trocarPorRename(novo, opcoes.destino);
   } finally {
     rmSync(pacote, { force: true });
     rmSync(novo, { force: true });

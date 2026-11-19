@@ -1,6 +1,7 @@
 import type { Database } from "bun:sqlite";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { trocarPorRename } from "../atualizador";
 
 /**
  * Duas trilhas, cada uma no seu arquivo SQLite, com a própria tabela de controle. A do núcleo vem
@@ -101,7 +102,7 @@ export function migrar(
       rmSync(temporario, { force: true });
       banco.run("VACUUM INTO ?", [temporario]);
       if (process.platform !== "win32") chmodSync(temporario, 0o600);
-      renameSync(temporario, backup);
+      trocarPorRename(temporario, backup);
     }
   }
 
