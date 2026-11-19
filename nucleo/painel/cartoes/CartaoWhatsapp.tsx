@@ -2,6 +2,7 @@ import { LoaderCircle, MessageCircle } from "lucide-react";
 import { QRCodeSVG } from "qrcode.react";
 import { useId, useState, type FormEvent } from "react";
 import { ROTULOS_DAS_ACOES, type EntradaConectar, type EstadoWhatsapp } from "../../dominio";
+import type { PedidoDeAcao } from "../api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,7 +19,7 @@ const RAIO_DO_ANEL = (TAMANHO_DO_ANEL - ESPESSURA_DO_ANEL) / 2;
 const VOLTA_DO_ANEL = 2 * Math.PI * RAIO_DO_ANEL;
 const ARCO_DO_ANEL = 0.28;
 
-/** O wacli não diz o total: o arco gira sem medir nada, e o centro mostra a contagem real. */
+/** O wacli não diz o total: o arco gira sem medir nada, e o centro mostra a contagem real. Sem movimento, um arco parado pareceria progresso, então o anel fica inteiro. */
 function AnelDaSincronizacao({ mensagens }: { mensagens: number }) {
   const texto = textoDoAnel(mensagens);
   const centro = TAMANHO_DO_ANEL / 2;
@@ -35,7 +36,7 @@ function AnelDaSincronizacao({ mensagens }: { mensagens: number }) {
           strokeLinecap="round"
           strokeDasharray={VOLTA_DO_ANEL}
           strokeDashoffset={VOLTA_DO_ANEL * (1 - ARCO_DO_ANEL)}
-          className="stroke-primary"
+          className="stroke-primary motion-reduce:[stroke-dashoffset:0]"
         />
       </svg>
       <div className="absolute text-center leading-tight">
@@ -50,7 +51,7 @@ function AnelDaSincronizacao({ mensagens }: { mensagens: number }) {
 function QuadroVazio() {
   return (
     <div className="grid aspect-square w-full max-w-56 place-items-center self-center rounded-xl border border-dashed border-input">
-      <p className="px-6 text-center text-sm text-muted-foreground">O QR aparece aqui.</p>
+      <p className="px-6 text-center text-sm text-muted-foreground">Clique em Novo QR para gerar o QR.</p>
     </div>
   );
 }
@@ -98,17 +99,23 @@ function Pareamento({ estado, agora }: { estado: Extract<EstadoWhatsapp, { fase:
 }
 
 /**
- * Conectar e reparear do WhatsApp: QR por padrão, ou código pelo número de telefone. Fora do pareamento os
- * botões mandam `conectar`; no pareamento, `reparear` com a rodada na tela, que troca o QR ou o código por outro.
+ * Fora do pareamento os botões mandam `conectar`; no pareamento, `reparear` com a rodada na tela, que troca o QR
+ * ou o código por outro.
  */
+export function pedidoDeParear(estado: EstadoWhatsapp, entrada: EntradaConectar["whatsapp"]): PedidoDeAcao {
+  return estado.fase === "pareando"
+    ? { id: "whatsapp", acao: "reparear", corpo: { ...entrada, rodada: estado.expiraEm } }
+    : { id: "whatsapp", acao: "conectar", corpo: entrada };
+}
+
+/** Conectar e reparear do WhatsApp: QR por padrão, ou código pelo número de telefone. */
 function EscolhaDeConexao({ estado, livre, agir }: Pick<PropsDoConector<"whatsapp">, "estado" | "livre" | "agir">) {
   const [pedirNumero, setPedirNumero] = useState(false);
   const [erroDoNumero, setErroDoNumero] = useState<string | null>(null);
   const idDoCampo = useId();
   const pareando = estado.fase === "pareando" ? estado : null;
 
-  const parear = (entrada: EntradaConectar["whatsapp"]) =>
-    agir(pareando === null ? { id: "whatsapp", acao: "conectar", corpo: entrada } : { id: "whatsapp", acao: "reparear", corpo: { ...entrada, rodada: pareando.expiraEm } });
+  const parear = (entrada: EntradaConectar["whatsapp"]) => agir(pedidoDeParear(estado, entrada));
 
   const enviarNumero = (evento: FormEvent<HTMLFormElement>) => {
     evento.preventDefault();
@@ -130,7 +137,7 @@ function EscolhaDeConexao({ estado, livre, agir }: Pick<PropsDoConector<"whatsap
     return (
       <>
         <Button variant="outline" disabled={!livre} onClick={() => setPedirNumero(true)}>
-          Usar código no lugar do QR
+          Usar código
         </Button>
         <Button variant={pareando === null ? "default" : "outline"} disabled={!livre} onClick={() => parear({ meio: "qr" })}>
           {estado.fase === "atencao" ? ROTULOS_DAS_ACOES.conectar : ROTULOS_DAS_ACOES.reparear}
