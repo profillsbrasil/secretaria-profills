@@ -14,12 +14,25 @@ O jeito mais simples é pelo agente. Abra o Claude Code ou o Codex e cole esta f
 
 O agente instala, e no fim pede que você abra uma conversa nova dentro da pasta `secretaria-profills` e diga "continue a instalação". Lá ele conecta o WhatsApp e o CRM com você.
 
-Para instalar à mão, siga daqui. A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode uma linha:
+Para instalar à mão, siga daqui. A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode os comandos do seu sistema.
 
-| Sistema | Comando |
-|---|---|
-| Linux e macOS | `curl -fsSL https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.sh \| sh` |
-| Windows (PowerShell) | `powershell -ExecutionPolicy Bypass -c "irm https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 \| iex"` |
+Linux e macOS:
+
+```
+curl -fsSL https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.sh | sh
+```
+
+Windows, no PowerShell, em dois passos. O primeiro baixa o script para o arquivo `instalar.ps1`, e o segundo roda esse arquivo:
+
+```
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/instalar.ps1 -OutFile instalar.ps1
+```
+
+```
+powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar.ps1
+```
+
+O `-ExecutionPolicy Bypass` vale só para esse comando: sem ele, o Windows recusa o arquivo. Não use a forma que baixa e executa numa linha só: o Microsoft Defender a barra antes de o instalador começar, com "Acesso negado" ou "UseShellExecute". Depois que o script termina, pode apagar o `instalar.ps1` da pasta em que ele foi baixado: a Secretária não usa esse arquivo.
 
 O script instala o Bun 1.4.4 se faltar um Bun dessa versão ou mais novo, sem `sudo` e sem senha, prepara a máquina e abre o painel. Rodar de novo não estraga nada. No Linux, o instalador do Bun precisa de `curl`, `bash` e `unzip`. No macOS, o WhatsApp pede macOS 15 ou mais novo. Enquanto não houver versão publicada, o script diz isso e sai sem instalar nada.
 
@@ -81,6 +94,8 @@ Fora do repo, na pasta de dados do sistema:
 | Windows | `%LOCALAPPDATA%\SecretariaProfills` |
 
 Lá ficam o banco, os backups, os registros e o programa do WhatsApp. Nada disso vai para o Git. O que a Secretária lê do CRM fica numa cópia descartável no banco: apagar a cópia não perde nada do vendedor, e a próxima leitura busca tudo de novo. A Secretária copia o banco uma vez por dia para `backups/` e guarda as 7 cópias mais novas.
+
+Uma segunda Secretária, instalada em outra pasta da mesma máquina, usa a mesma pasta de dados: o mesmo banco e as mesmas conexões. Para separar, defina `SECRETARIA_DADOS` com outra pasta, fora da pasta da Secretária, em todo terminal que roda a segunda. A porta não precisa mudar: com a porta ocupada, a Secretária pega a seguinte livre.
 
 ## O navegador não abre
 
