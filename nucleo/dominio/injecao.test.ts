@@ -100,6 +100,14 @@ const SUSPEITAS: readonly (readonly [string, Sinal])[] = [
   ["ignore your rules", "fala_com_o_agente"],
 ];
 
+/** Tempo de CPU do processo, em ms: o tempo em que o runner dá a CPU a outro processo não conta, e um padrão quadrático, sim. */
+function msDeCpu(trabalho: () => void): number {
+  const antes = process.cpuUsage();
+  trabalho();
+  const { user, system } = process.cpuUsage(antes);
+  return (user + system) / 1_000;
+}
+
 describe("sinaisDeInjecao: conversa comum de vendas não dispara", () => {
   test.each(LIMPAS)("%s", (texto) => {
     expect(sinaisDeInjecao(texto)).toEqual([]);
@@ -146,17 +154,16 @@ describe("sinaisDeInjecao: mensagem suspeita acende o sinal", () => {
     ["saudação seguida de símbolos", `hi${"!".repeat(65_536)}`],
     ["muitos ignore tudo", "ignore tudo ".repeat(5_400)],
     ["muitos pedidos de segredo sem o segredo", "mande sua ".repeat(6_500)],
-  ])("entrada adversa termina em menos de 200 ms: %s", (_nome, texto) => {
-    const inicio = performance.now();
-    sinaisDeInjecao(texto);
-    expect(performance.now() - inicio).toBeLessThan(200);
+  ])("entrada adversa gasta menos de 200 ms de CPU: %s", (_nome, texto) => {
+    expect(msDeCpu(() => sinaisDeInjecao(texto))).toBeLessThan(200);
   });
 
   test("texto muito longo termina rápido", () => {
-    const inicio = performance.now();
-    sinaisDeInjecao(`${"ignore ".repeat(20_000)}x`);
-    sinaisDeInjecao("a ".repeat(100_000));
-    expect(performance.now() - inicio).toBeLessThan(2_000);
+    const gasto = msDeCpu(() => {
+      sinaisDeInjecao(`${"ignore ".repeat(20_000)}x`);
+      sinaisDeInjecao("a ".repeat(100_000));
+    });
+    expect(gasto).toBeLessThan(2_000);
   });
 });
 
