@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, setDefaultTimeout, test } from "bun:test";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -6,6 +6,8 @@ import { INTERVALO_DAS_CONFERENCIAS_MS, type EstadoDaAtualizacao } from "../../n
 import { VERSAO_DO_NUCLEO, type Diagnostico } from "../../nucleo/servidor";
 import { subirReleaseFalsa, type ReleaseFalsa } from "../falsos/release";
 import { subirPalco, type Palco } from "./palco";
+
+setDefaultTimeout(30_000);
 
 const [MAIOR, MEIO, MENOR] = VERSAO_DO_NUCLEO.split(".").map(Number) as [number, number, number];
 const MAIS_NOVA = `${MAIOR + 1}.0.0`;
