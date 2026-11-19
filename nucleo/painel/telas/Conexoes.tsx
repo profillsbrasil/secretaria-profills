@@ -11,6 +11,7 @@ import { podeAgir, type Conexao } from "../conexao";
 import { NOMES_DOS_CONECTORES, progresso } from "../descrever";
 import { hashDaRota, type GavetaDoEmail as GavetaDaRota } from "../rota";
 import { CabecalhoDaTela } from "./comum";
+import { useQrAoAbrir } from "./useQrAoAbrir";
 
 function useAgora(): Date {
   const [agora, setAgora] = useState(() => new Date());
@@ -122,6 +123,9 @@ export function Conexoes({ conexao, gaveta }: { conexao: Conexao; gaveta: Gaveta
     [aberto, pendente, estado],
   );
 
+  const livre = aberto && pendente === null;
+  useQrAoAbrir(conexao, livre, agir);
+
   const props = <C extends IdConectorUnico>(id: C) => {
     const visao = estado!.conectores[id];
     const erro = erros[id];
@@ -129,7 +133,7 @@ export function Conexoes({ conexao, gaveta }: { conexao: Conexao; gaveta: Gaveta
       estado: visao.estado,
       acoes: visao.acoes,
       agora,
-      livre: aberto && pendente === null,
+      livre,
       erro: erro !== undefined && erro.fase === visao.estado.fase ? erro.erro : null,
       agir,
     };

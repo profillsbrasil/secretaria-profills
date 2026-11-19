@@ -17,9 +17,10 @@ function rodape(html: string): string[] {
 }
 
 describe("cartão do WhatsApp", () => {
-  test("desconectado: Usar código em contorno e Novo QR cheio, por último", () => {
+  test("desconectado: o quadro do QR vazio, Usar código em contorno e Novo QR cheio, por último", () => {
     const html = desenhar({ fase: "desconectado" });
     expect(html).toContain("Conecte o WhatsApp de trabalho lendo um QR com o celular.");
+    expect(html).toContain("O QR aparece aqui.");
     expect(rodape(html)).toEqual(["Usar código no lugar do QR (outline)", "Novo QR (default)"]);
   });
 

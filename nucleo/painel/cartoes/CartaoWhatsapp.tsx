@@ -12,6 +12,15 @@ import { Cartao, Prazo } from "./Cartao";
 
 const PASSOS_NO_CELULAR = "No celular, abra o WhatsApp e toque em Configurações, depois em Aparelhos conectados e em Conectar aparelho.";
 
+/** O lugar do QR antes de ele existir: o mesmo tamanho do quadro do pareamento, para o cartão não pular. */
+function QuadroVazio() {
+  return (
+    <div className="grid aspect-square w-full max-w-56 place-items-center self-center rounded-xl border border-dashed border-input">
+      <p className="px-6 text-center text-sm text-muted-foreground">O QR aparece aqui.</p>
+    </div>
+  );
+}
+
 function Pareamento({ estado, agora }: { estado: Extract<EstadoWhatsapp, { fase: "pareando" }>; agora: Date }) {
   const { meio } = estado;
   switch (meio.tipo) {
@@ -145,6 +154,7 @@ export function CartaoWhatsapp({ estado, acoes, agora, livre, erro, agir }: Prop
         />
       }
     >
+      {estado.fase === "desconectado" && <QuadroVazio />}
       {estado.fase === "pareando" && <Pareamento estado={estado} agora={agora} />}
       {estado.fase === "sincronizando" && (
         <>
