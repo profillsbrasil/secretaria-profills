@@ -1,5 +1,6 @@
-import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readSync, readdirSync, renameSync, rmSync } from "node:fs";
+import { chmodSync, closeSync, fstatSync, mkdirSync, openSync, readSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
+import { trocarPorRename } from "../atualizador";
 import type { Dia } from "../dominio";
 import type { BancoAberto } from "./abrir";
 
@@ -59,7 +60,7 @@ export function backupDoDia(banco: BancoAberto, dirBackups: string, dia: Dia, gu
     rmSync(temporario, { force: true });
     banco.sqlite.run("VACUUM INTO ?", [temporario]);
     if (process.platform !== "win32") chmodSync(temporario, 0o600);
-    renameSync(temporario, arquivo);
+    trocarPorRename(temporario, arquivo);
     criado = true;
   }
 

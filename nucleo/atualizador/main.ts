@@ -114,7 +114,9 @@ export interface Prazos {
   readonly esperasDoRenameMs: readonly number[];
 }
 
-export const PRAZOS: Prazos = { bancoMs: 30_000, soltarBancoMs: 10_000, instalarMs: 900_000, servidorMs: 60_000, intervaloMs: 250, esperasDoRenameMs: [100, 200, 400, 800, 1_500] };
+const ESPERAS_DO_RENAME_MS = [100, 200, 400, 800, 1_500];
+
+export const PRAZOS: Prazos = { bancoMs: 30_000, soltarBancoMs: 10_000, instalarMs: 900_000, servidorMs: 60_000, intervaloMs: 250, esperasDoRenameMs: ESPERAS_DO_RENAME_MS };
 
 export interface ServidorSubindo {
   readonly pid: number | undefined;
@@ -311,11 +313,11 @@ export function lerAndamento(caminho: string): AndamentoLido {
   };
 }
 
-export function gravarAndamento(caminho: string, andamento: Andamento): void {
+export function gravarAndamento(caminho: string, andamento: Andamento, renomeador: Renomeador = RENOMEADOR_DO_SISTEMA): void {
   mkdirSync(path.dirname(caminho), { recursive: true });
   const temporario = `${caminho}.${process.pid}.tmp`;
   writeFileSync(temporario, JSON.stringify(andamento));
-  renameSync(temporario, caminho);
+  trocarPorRename(temporario, caminho, renomeador);
 }
 
 /** O andamento que o servidor grava antes de subir o atualizador e pedir a própria parada. */
@@ -386,6 +388,34 @@ class Falha extends Error {
 
 const USO_NO_WINDOWS = ["EPERM", "EBUSY", "EACCES"];
 
+/** Como `trocarPorRename` renomeia. O teste troca o sistema e encurta as esperas. */
+export interface Renomeador {
+  readonly plataforma: NodeJS.Platform;
+  renomear(de: string, para: string): void;
+  readonly esperasMs: readonly number[];
+}
+
+export const RENOMEADOR_DO_SISTEMA: Renomeador = { plataforma: process.platform, renomear: renameSync, esperasMs: ESPERAS_DO_RENAME_MS };
+
+/**
+ * Põe `de` no lugar de `para` num rename só. Mora aqui porque o atualizador não importa nada do
+ * núcleo; o resto do núcleo troca arquivo por aqui também. Esgotadas as esperas, relança o erro.
+ */
+export function trocarPorRename(de: string, para: string, renomeador: Renomeador = RENOMEADOR_DO_SISTEMA): void {
+  for (let tentativa = 0; ; tentativa++) {
+    try {
+      renomeador.renomear(de, para);
+      return;
+    } catch (erro) {
+      // No Windows, quem tem o arquivo aberto (outro processo lendo, o antivírus) faz o rename falhar por instantes: esperar e tentar de novo é o tratamento padrão, o mesmo do graceful-fs.
+      const espera = renomeador.esperasMs[tentativa];
+      const emUso = renomeador.plataforma === "win32" && USO_NO_WINDOWS.includes((erro as NodeJS.ErrnoException).code ?? "");
+      if (!emUso || espera === undefined) throw erro;
+      Bun.sleepSync(espera);
+    }
+  }
+}
+
 function tipoDe(caminho: string): "arquivo" | "link" | "outro" | null {
   try {
     const estado = lstatSync(caminho);
@@ -403,27 +433,15 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
   const caminhos = caminhosDoAtualizador(raizDoRepo, dirDados);
   const em = (base: string, caminho: string) => path.join(base, ...caminho.split("/"));
 
-  /** No Windows, antivírus ou editor seguram um arquivo por instantes: tenta de novo poucas vezes antes de desistir. */
-  async function renomear(de: string, para: string): Promise<void> {
-    for (let tentativa = 0; ; tentativa++) {
-      try {
-        efeitos.renomear(de, para);
-        return;
-      } catch (erro) {
-        const espera = prazos.esperasDoRenameMs[tentativa];
-        const emUso = efeitos.plataforma === "win32" && USO_NO_WINDOWS.includes((erro as NodeJS.ErrnoException).code ?? "");
-        if (!emUso || espera === undefined) throw erro;
-        await Bun.sleep(espera);
-      }
-    }
-  }
+  const renomeador: Renomeador = { plataforma: efeitos.plataforma, renomear: efeitos.renomear, esperasMs: prazos.esperasDoRenameMs };
+  const renomear = (de: string, para: string) => trocarPorRename(de, para, renomeador);
 
   /** Copia o arquivo por um nome temporário: `destino` só aparece inteiro. */
-  async function copiarArquivo(de: string, destino: string): Promise<void> {
+  function copiarArquivo(de: string, destino: string): void {
     const parcial = `${destino}.parcial`;
     mkdirSync(path.dirname(destino), { recursive: true });
     efeitos.copiar(de, parcial);
-    await renomear(parcial, destino);
+    renomear(parcial, destino);
   }
 
   /**
@@ -432,51 +450,51 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
    * `bun secretaria` começa, nunca faltam. Pasta não entra por cima de pasta: ela sai e a nova
    * entra, e o buraco entre os dois renames é o que o `entrada.ts` sabe recompor.
    */
-  async function trocar(troca: Troca): Promise<void> {
+  function trocar(troca: Troca): void {
     const noRepo = em(raizDoRepo, troca.caminho);
     const naNova = em(caminhos.nova, troca.caminho);
     const naAnterior = em(caminhos.anterior, troca.caminho);
     if (ehLink(naNova)) throw new Falha("troca_falhou", `${troca.caminho} da versão nova é um link`);
     if (troca.tinhaAntiga && !existsSync(naAnterior)) {
-      if (ehArquivo(noRepo) && ehArquivo(naNova)) await copiarArquivo(noRepo, naAnterior);
+      if (ehArquivo(noRepo) && ehArquivo(naNova)) copiarArquivo(noRepo, naAnterior);
       else {
         mkdirSync(path.dirname(naAnterior), { recursive: true });
-        await renomear(noRepo, naAnterior);
+        renomear(noRepo, naAnterior);
       }
     }
     if (troca.temNova && existsSync(naNova)) {
       mkdirSync(path.dirname(noRepo), { recursive: true });
-      await renomear(naNova, noRepo);
+      renomear(naNova, noRepo);
     }
   }
 
   /** Verdadeiro quando moveu alguma coisa. */
-  async function destrocar(troca: Troca): Promise<boolean> {
+  function destrocar(troca: Troca): boolean {
     const noRepo = em(raizDoRepo, troca.caminho);
     const naNova = em(caminhos.nova, troca.caminho);
     const naAnterior = em(caminhos.anterior, troca.caminho);
     // O que está no repo só é da versão nova se a antiga já saiu (ou nunca existiu) e a nova não está mais em `nova/`.
     let moveu = false;
     if (troca.temNova && !existsSync(naNova) && existsSync(noRepo) && (!troca.tinhaAntiga || existsSync(naAnterior))) {
-      if (troca.tinhaAntiga && ehArquivo(noRepo) && ehArquivo(naAnterior)) await copiarArquivo(noRepo, naNova);
+      if (troca.tinhaAntiga && ehArquivo(noRepo) && ehArquivo(naAnterior)) copiarArquivo(noRepo, naNova);
       else {
         mkdirSync(path.dirname(naNova), { recursive: true });
-        await renomear(noRepo, naNova);
+        renomear(noRepo, naNova);
       }
       moveu = true;
     }
     if (troca.tinhaAntiga && existsSync(naAnterior)) {
       mkdirSync(path.dirname(noRepo), { recursive: true });
-      await renomear(naAnterior, noRepo);
+      renomear(naAnterior, noRepo);
       moveu = true;
     }
     return moveu;
   }
 
   /** Quantas entradas voltaram de lugar. */
-  async function desfazerTrocas(andamento: Andamento): Promise<number> {
+  function desfazerTrocas(andamento: Andamento): number {
     let movidas = 0;
-    for (const troca of [...andamento.trocas].reverse()) if (await destrocar(troca)) movidas += 1;
+    for (const troca of [...andamento.trocas].reverse()) if (destrocar(troca)) movidas += 1;
     return movidas;
   }
 
@@ -505,6 +523,7 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
 
   return {
     caminhos,
+    renomeador,
 
     /** Os dois bancos, o do núcleo e o do vendedor, porque a volta devolve as cópias dos dois. */
     bancosLivres: () => efeitos.bancoLivre(caminhos.banco) && efeitos.bancoLivre(caminhos.bancoDoVendedor),
@@ -569,8 +588,8 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
      * Guarda este arquivo fora das pastas trocadas e copia os bancos, o `meu/` e, se a trava mudou,
      * o wacli. A pasta `antes/` só aparece com a cópia inteira.
      */
-    async copiar(versao: string): Promise<void> {
-      await copiarArquivo(import.meta.path, caminhos.atualizadorGuardado);
+    copiar(versao: string): void {
+      copiarArquivo(import.meta.path, caminhos.atualizadorGuardado);
       const antes = caminhos.copias(versao);
       const parcial = `${antes}.parcial`;
       rmSync(parcial, { recursive: true, force: true });
@@ -596,18 +615,18 @@ function operacoes(raizDoRepo: string, dirDados: string, prazos: Prazos, efeitos
         mkdirSync(path.join(parcial, "bin"), { recursive: true });
         efeitos.copiar(caminhos.wacli, path.join(parcial, "bin", path.basename(caminhos.wacli)));
       }
-      await renomear(parcial, antes);
+      renomear(parcial, antes);
     },
 
-    async trocarTudo(trocas: readonly Troca[]): Promise<void> {
-      for (const troca of trocas) await trocar(troca);
+    trocarTudo(trocas: readonly Troca[]): void {
+      for (const troca of trocas) trocar(troca);
     },
 
     desfazerTrocas,
 
     /** A volta: devolve cada entrada na ordem inversa e, se o banco pôde ter migrado, as cópias de `antes/`. */
-    async desfazer(andamento: Andamento): Promise<void> {
-      await desfazerTrocas(andamento);
+    desfazer(andamento: Andamento): void {
+      desfazerTrocas(andamento);
       if (!andamento.restaurarDados || andamento.para === null) return;
       const antes = caminhos.copias(andamento.para);
       if (!existsSync(antes)) return;
@@ -697,7 +716,7 @@ export async function atualizar(
     };
     const gravar = (mudanca: Partial<Andamento>): Andamento => {
       andamento = { ...andamento, ...mudanca, atualizadoEm: new Date().toISOString() };
-      gravarAndamento(caminhos.andamento, andamento);
+      gravarAndamento(caminhos.andamento, andamento, ops.renomeador);
       efeitos.observar(andamento);
       return andamento;
     };
@@ -729,9 +748,9 @@ export async function atualizar(
       const versao = andamento.para;
       if (versao === null) throw new Falha("versao_nova_invalida", "a versão nova não diz a versão");
       gravar({ fase: (passo = "copiar"), ...plano });
-      await ops.copiar(versao);
+      ops.copiar(versao);
       gravar({ fase: (passo = "trocar") });
-      await ops.trocarTudo(andamento.trocas);
+      ops.trocarTudo(andamento.trocas);
       gravar({ fase: (passo = "instalar"), restaurarDados: true });
       const instalando = efeitos.iniciarInstalar(raizDoRepo, dirDados);
       let instalarSaiu = false;
@@ -759,7 +778,7 @@ export async function atualizar(
           gravar({ processo: null });
         }
         if (!(await esperarAte(ops.bancosLivres, prazos.bancoMs, prazos.intervaloMs))) throw new Error("o banco seguiu em uso");
-        await ops.desfazer(andamento);
+        ops.desfazer(andamento);
       } catch (naVolta) {
         return { tipo: "volta_incompleta", andamento, detalhe: mensagem(naVolta) };
       }
@@ -805,9 +824,9 @@ function falhaDaQueda(andamento: Andamento): NonNullable<Andamento["falha"]> {
   return andamento.falha ?? { passo, motivo: "interrompida", detalhe: "o atualizador parou antes de terminar" };
 }
 
-function regravar(caminho: string, andamento: Andamento, mudanca: Partial<Andamento>, efeitos: Efeitos): Andamento {
+function regravar(caminho: string, andamento: Andamento, mudanca: Partial<Andamento>, efeitos: Efeitos, renomeador: Renomeador): Andamento {
   const novo = { ...andamento, ...mudanca, atualizadoEm: new Date().toISOString() };
-  gravarAndamento(caminho, novo);
+  gravarAndamento(caminho, novo, renomeador);
   efeitos.observar(novo);
   return novo;
 }
@@ -834,7 +853,7 @@ export async function recuperar(
     if (lido.tipo === "ausente" || ehFinal(lido.andamento.fase)) return { tipo: "nada" };
     let andamento = lido.andamento;
     const { de, para, processo } = andamento;
-    const gravar = (mudanca: Partial<Andamento>) => (andamento = regravar(caminhos.andamento, andamento, mudanca, efeitos));
+    const gravar = (mudanca: Partial<Andamento>) => (andamento = regravar(caminhos.andamento, andamento, mudanca, efeitos, ops.renomeador));
     const falha = falhaDaQueda(andamento);
     if (opcoes.versaoNoAr !== null) {
       // O servidor grava o `preparado` ainda no ar, antes de subir o atualizador e parar.
@@ -873,7 +892,7 @@ export async function recuperar(
     if (semProcesso === "preso" && processo !== null) return { tipo: "processo_preso", papel: processo.papel, pid: processo.pid };
     if (!(await esperarAte(ops.bancosLivres, prazos.soltarBancoMs, prazos.intervaloMs))) return { tipo: "banco_em_uso" };
     if (andamento.fase !== "desfazer" || processo !== null) gravar({ fase: "desfazer", falha, processo: null });
-    await ops.desfazer(andamento);
+    ops.desfazer(andamento);
     gravar({ fase: "desfeito", falha });
     return { tipo: "desfeita", de, para };
   } catch (erro) {
@@ -912,8 +931,8 @@ export async function recomporArvore(raizDoRepo: string, efeitos: Efeitos = efei
     if (andamento === null) return { tipo: "nada" };
     // Com o processo ainda anotado, a volta não moveu nada: a pasta está inteira, e encerrá-lo é do `recuperar`.
     if (ops.estadoDoProcesso(andamento.processo, andamento) !== "nenhum") return { tipo: "em_andamento" };
-    if (andamento.fase !== "desfazer") regravar(caminhos.andamento, andamento, { fase: "desfazer", falha: falhaDaQueda(andamento), processo: null }, efeitos);
-    return (await ops.desfazerTrocas(andamento)) > 0 ? { tipo: "recomposta" } : { tipo: "nada" };
+    if (andamento.fase !== "desfazer") regravar(caminhos.andamento, andamento, { fase: "desfazer", falha: falhaDaQueda(andamento), processo: null }, efeitos, ops.renomeador);
+    return ops.desfazerTrocas(andamento) > 0 ? { tipo: "recomposta" } : { tipo: "nada" };
   } catch (erro) {
     return { tipo: "falhou", detalhe: mensagem(erro) };
   } finally {

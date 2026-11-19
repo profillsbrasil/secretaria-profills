@@ -1,5 +1,6 @@
-import { readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { z } from "zod";
+import { trocarPorRename } from "../atualizador";
 import { horaDeInicio, vivo } from "../processos";
 
 /** `<dados>/servidor.json`: como o CLI acha o servidor no ar. Novo a cada boot, apagado no `parar`. */
@@ -26,7 +27,7 @@ export function lerArquivoDoServidor(caminho: string): ArquivoDoServidor | null 
 export function gravarArquivoDoServidor(caminho: string, conteudo: ArquivoDoServidor): void {
   const temporario = `${caminho}.${process.pid}.tmp`;
   writeFileSync(temporario, JSON.stringify(conteudo), { mode: 0o600 });
-  renameSync(temporario, caminho);
+  trocarPorRename(temporario, caminho);
 }
 
 /** Só apaga o arquivo que este servidor gravou: um servidor novo pode já ter escrito o dele. */
@@ -77,7 +78,7 @@ function gravarPid(caminho: string): void {
   const inicio = horaDeInicio(process.pid);
   const temporario = `${caminho}.${process.pid}.tmp`;
   writeFileSync(temporario, JSON.stringify({ v: 1, pid: process.pid, inicio }), { mode: 0o600 });
-  renameSync(temporario, caminho);
+  trocarPorRename(temporario, caminho);
 }
 
 /**

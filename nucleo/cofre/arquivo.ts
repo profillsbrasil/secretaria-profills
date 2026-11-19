@@ -1,6 +1,7 @@
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
+import { trocarPorRename } from "../atualizador";
 import { ehChaveDoCofre, type ChaveDoCofre, type Cofre } from "./contrato";
 import { Segredo } from "./segredo";
 
@@ -39,7 +40,7 @@ export function cofreEmArquivo(dirDados: string): Cofre {
     mkdirSync(dirname(caminho), { recursive: true });
     const temporario = `${caminho}.${process.pid}.tmp`;
     writeFileSync(temporario, JSON.stringify(conteudo), { mode: 0o600 });
-    renameSync(temporario, caminho);
+    trocarPorRename(temporario, caminho);
   }
 
   return {
