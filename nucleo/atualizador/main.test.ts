@@ -364,6 +364,28 @@ describe("falha em cada passo deixa a 0.1.0 no ar com o banco igual", () => {
     expect((await rodar(efeitos)).tipo).toBe("desfeita");
     expect(recusas).toBe(1);
   });
+
+  test("no Windows, o andamento.json recusado no passo subir por quem o tem aberto é gravado de novo, e a atualização conclui", async () => {
+    instalacao = montarInstalacao();
+    const reais = efeitosReais();
+    const { andamento } = caminhosDoAtualizador(instalacao.raiz, instalacao.dirDados);
+    let recusas = 0;
+    const efeitos = efeitosDeTeste({
+      plataforma: "win32",
+      renomear(de, para) {
+        if (para === andamento && recusas < 2 && JSON.parse(readFileSync(de, "utf8")).fase === "subir") {
+          recusas += 1;
+          throw erroDoSistema("EPERM");
+        }
+        reais.renomear(de, para);
+      },
+    });
+
+    const desfecho = await rodar(efeitos);
+    expect(recusas).toBe(2);
+    expect(desfecho).toMatchObject({ tipo: "concluida", andamento: { fase: "concluido", falha: null } });
+    expect(andamentoNoDisco()).toMatchObject({ fase: "concluido", falha: null });
+  });
 });
 
 describe("a pasta nunca fica sem a porta do bun secretaria", () => {
