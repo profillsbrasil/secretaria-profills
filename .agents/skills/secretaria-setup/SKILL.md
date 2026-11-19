@@ -50,11 +50,11 @@ No `status`, `conectores` traz o WhatsApp e o CRM com `estado.fase` e `acoes`, e
 
 ## 3. WhatsApp
 
-Peça ao vendedor que clique em "Conectar" no cartão do WhatsApp e leia o QR com o celular do trabalho (WhatsApp, Aparelhos conectados, Conectar um aparelho). Rode `bun secretaria esperar whatsapp=confirmar_conta --ate 540s --json`.
+Peça ao vendedor que abra Conexões no painel e leia o QR do cartão do WhatsApp com o celular do trabalho (WhatsApp, Aparelhos conectados, Conectar um aparelho). O QR aparece sozinho ao abrir Conexões; se não aparecer ou vencer, ele clica em "Novo QR". Rode `bun secretaria esperar whatsapp=confirmar_conta --ate 540s --json`.
 
 - Na fase `confirmar_conta`, o painel mostra o final do número. Pergunte se é o celular do trabalho e diga para ele responder no painel: quem confirma é ele. Depois rode `bun secretaria esperar whatsapp=conectado --ate 540s --json`.
 - Cada `esperar` vai até 9 minutos, abaixo do limite de 10 minutos de um comando seu. Saída 3 (prazo) com `sincronizando` ou `confirmar_conta`: ainda anda, rode o mesmo `esperar` de novo.
-- Saída 3 (prazo) com `pareando`: o QR pode ter vencido. Ele clica em "Conectar" de novo, e você roda o mesmo `esperar` de novo.
+- Saída 3 (prazo) com `pareando`: o QR pode ter vencido. Ele clica em "Novo QR" no cartão do WhatsApp, e você roda o mesmo `esperar` de novo.
 - `whatsapp_passkey_exigida`: sugira conectar pelo código do telefone, no próprio cartão.
 
 ## 4. CRM da Secretária

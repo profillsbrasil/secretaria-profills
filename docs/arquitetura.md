@@ -1155,7 +1155,7 @@ Com bloqueio, o clique responde `atualizacao_bloqueada` (409) com o estado em `e
 
 ### O que espera a atualização
 
-Do clique até a parada, ou até `falhou`, nada que se perderia num restart começa. `recusaDuranteAAtualizacao` do aplicador responde `atualizacao_em_andamento` (409) a `aprovar` e `tentar_de_novo` de um cartão, a `POST /api/sincronizar`, a `POST /api/painel/aberto`, ao `conectar` e ao `testar` do WhatsApp, do CRM e das contas de e-mail, a adicionar conta e a `/oauth/crm/iniciar`. Quem pede confere na mesma volta em que começa, sem `await` no meio: para o cartão, dentro da fila das gravações, antes de ele ir a `gravando`. Sem isso, o que começasse depois da última conferência das ocupações, no passo `reiniciando`, seria cortado pela parada: o cartão ficaria `falhou_incerto` e o pareamento se perderia. A sincronização automática por conexão só nasce de um `conectar`, então também espera.
+Do clique até a parada, ou até `falhou`, nada que se perderia num restart começa. `recusaDuranteAAtualizacao` do aplicador responde `atualizacao_em_andamento` (409) a `aprovar` e `tentar_de_novo` de um cartão, a `POST /api/sincronizar`, a `POST /api/painel/aberto`, ao `conectar` e ao `testar` do WhatsApp, do CRM e das contas de e-mail, ao `reparear` do WhatsApp, a adicionar conta e a `/oauth/crm/iniciar`. Quem pede confere na mesma volta em que começa, sem `await` no meio: para o cartão, dentro da fila das gravações, antes de ele ir a `gravando`. Sem isso, o que começasse depois da última conferência das ocupações, no passo `reiniciando`, seria cortado pela parada: o cartão ficaria `falhou_incerto` e o pareamento se perderia. A sincronização automática por conexão só nasce de um `conectar`, então também espera.
 
 ### Os passos no servidor
 
