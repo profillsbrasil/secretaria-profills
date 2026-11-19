@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { CONECTORES_UNICOS, FASES, PROBLEMAS, acoesPossiveis, instante, type EstadoPainel } from "../dominio";
-import { controleDaAcao, descrever, progresso } from "./descrever";
+import { controleDaAcao, descrever, progresso, textoDoAnel } from "./descrever";
 import { NOMES_DAS_CENAS, montarCena } from "./dev/cenas";
 import { hora, momento, restante } from "./tempo";
 
@@ -68,9 +68,9 @@ describe("texto de cada estado", () => {
     expect(descricao.identidade).toBe("Telefone terminado em 4321");
   });
 
-  test("sincronização conta mensagens no padrão brasileiro", () => {
+  test("sincronização deixa a contagem para o anel e mantém o prazo", () => {
     const descricao = descrever("whatsapp", estado("whatsapp-sincronizando").conectores.whatsapp.estado, agora);
-    expect(descricao.detalhes).toContain("1.250 mensagens copiadas até agora.");
+    expect(descricao.detalhes).toEqual([]);
     expect(descricao.prazo).not.toBeNull();
   });
 
@@ -110,5 +110,13 @@ describe("tempo no fuso de Brasília", () => {
     expect(restante(instante(new Date(agora.getTime() + 151_000)), agora)).toBe("2 min 31 s");
     expect(restante(instante(new Date(agora.getTime() + 45_000)), agora)).toBe("45 s");
     expect(restante(instante(agora), agora)).toBeNull();
+  });
+});
+
+describe("textoDoAnel", () => {
+  test("a contagem real no padrão BR, no singular e no plural, sem porcentagem", () => {
+    expect(textoDoAnel(0)).toEqual({ numero: "0", unidade: "mensagens", rotuloAcessivel: "0 mensagens copiadas" });
+    expect(textoDoAnel(1)).toEqual({ numero: "1", unidade: "mensagem", rotuloAcessivel: "1 mensagem copiada" });
+    expect(textoDoAnel(1250)).toEqual({ numero: "1.250", unidade: "mensagens", rotuloAcessivel: "1.250 mensagens copiadas" });
   });
 });

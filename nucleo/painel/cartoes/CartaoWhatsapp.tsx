@@ -5,12 +5,46 @@ import { ROTULOS_DAS_ACOES, type EntradaConectar, type EstadoWhatsapp } from "..
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { descrever, NOMES_DOS_CONECTORES } from "../descrever";
+import { descrever, NOMES_DOS_CONECTORES, textoDoAnel } from "../descrever";
 import { lerTelefoneDigitado } from "../formularios";
 import { AcoesDoRodape, type PropsDoConector } from "./comum";
 import { Cartao, Prazo } from "./Cartao";
 
 const PASSOS_NO_CELULAR = "No celular, abra o WhatsApp e toque em Configurações, depois em Aparelhos conectados e em Conectar aparelho.";
+
+const TAMANHO_DO_ANEL = 150;
+const ESPESSURA_DO_ANEL = 10;
+const RAIO_DO_ANEL = (TAMANHO_DO_ANEL - ESPESSURA_DO_ANEL) / 2;
+const VOLTA_DO_ANEL = 2 * Math.PI * RAIO_DO_ANEL;
+const ARCO_DO_ANEL = 0.28;
+
+/** O wacli não diz o total: o arco gira sem medir nada, e o centro mostra a contagem real. */
+function AnelDaSincronizacao({ mensagens }: { mensagens: number }) {
+  const texto = textoDoAnel(mensagens);
+  const centro = TAMANHO_DO_ANEL / 2;
+  return (
+    <div role="status" aria-label={texto.rotuloAcessivel} className="relative grid place-items-center self-center">
+      <svg aria-hidden width={TAMANHO_DO_ANEL} height={TAMANHO_DO_ANEL} viewBox={`0 0 ${TAMANHO_DO_ANEL} ${TAMANHO_DO_ANEL}`} className="motion-safe:animate-spin">
+        <circle cx={centro} cy={centro} r={RAIO_DO_ANEL} fill="none" strokeWidth={ESPESSURA_DO_ANEL} className="stroke-muted" />
+        <circle
+          cx={centro}
+          cy={centro}
+          r={RAIO_DO_ANEL}
+          fill="none"
+          strokeWidth={ESPESSURA_DO_ANEL}
+          strokeLinecap="round"
+          strokeDasharray={VOLTA_DO_ANEL}
+          strokeDashoffset={VOLTA_DO_ANEL * (1 - ARCO_DO_ANEL)}
+          className="stroke-primary"
+        />
+      </svg>
+      <div className="absolute text-center leading-tight">
+        <p className="font-mono text-[26px] font-semibold tabular-nums">{texto.numero}</p>
+        <p className="text-xs text-muted-foreground">{texto.unidade}</p>
+      </div>
+    </div>
+  );
+}
 
 /** O lugar do QR antes de ele existir: o mesmo tamanho do quadro do pareamento, para o cartão não pular. */
 function QuadroVazio() {
@@ -158,6 +192,7 @@ export function CartaoWhatsapp({ estado, acoes, agora, livre, erro, agir }: Prop
       {estado.fase === "pareando" && <Pareamento estado={estado} agora={agora} />}
       {estado.fase === "sincronizando" && (
         <>
+          <AnelDaSincronizacao mensagens={estado.mensagens} />
           <p className="text-sm leading-snug text-muted-foreground">Pode levar alguns minutos. Você pode deixar esta tela aberta.</p>
           <Prazo expiraEm={estado.expiraEm} agora={agora} rotulo="Tempo máximo:" />
         </>

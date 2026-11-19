@@ -40,4 +40,13 @@ describe("cartão do WhatsApp", () => {
     expect(rodape(html)).toEqual(["Cancelar (outline)", "Voltar ao QR (outline)"]);
   });
 
+  test("sincronizando: o anel mostra a contagem real no padrão BR, sem porcentagem, e o prazo fica", () => {
+    const html = desenhar({ fase: "sincronizando", mensagens: 1250, desde: instante(AGORA), expiraEm: instante(new Date("2026-11-19T12:30:00Z")) });
+    expect(html).toContain('role="status" aria-label="1.250 mensagens copiadas"');
+    expect(html).toContain(">1.250<");
+    expect(html).toContain(">mensagens<");
+    expect(html).toContain("Tempo máximo:");
+    expect(html).not.toContain("%");
+    expect(html).not.toContain("copiadas até agora");
+  });
 });

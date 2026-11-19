@@ -90,10 +90,7 @@ function descreverWhatsapp(estado: EstadoWhatsapp, agora: Date): SemTom {
       }
       break;
     case "sincronizando":
-      return descricao("Copiando as suas conversas para esta máquina.", {
-        detalhes: [`${numero(estado.mensagens)} mensagens copiadas até agora.`],
-        prazo: estado.expiraEm,
-      });
+      return descricao("Copiando as suas conversas para esta máquina.", { prazo: estado.expiraEm });
     case "confirmar_conta":
       return descricao("Confira se esta é a sua conta de trabalho.", { identidade: telefone(estado.conta) });
     case "conectado":
@@ -151,6 +148,20 @@ export function descrever<C extends IdConector>(id: C, estado: EstadoPorConector
     email: descreverEmail,
   };
   return { tom: TOM_DA_FASE[estado.fase], ...porConector[id](estado, agora) };
+}
+
+/** O centro do anel da sincronização: a contagem que o wacli dá, sem total nem porcentagem. */
+export interface TextoDoAnel {
+  readonly numero: string;
+  readonly unidade: "mensagem" | "mensagens";
+  readonly rotuloAcessivel: string;
+}
+
+export function textoDoAnel(mensagens: number): TextoDoAnel {
+  const numeroBr = numero(mensagens);
+  return mensagens === 1
+    ? { numero: numeroBr, unidade: "mensagem", rotuloAcessivel: `${numeroBr} mensagem copiada` }
+    : { numero: numeroBr, unidade: "mensagens", rotuloAcessivel: `${numeroBr} mensagens copiadas` };
 }
 
 /**
