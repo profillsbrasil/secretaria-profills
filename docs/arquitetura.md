@@ -1368,7 +1368,7 @@ Não verificado: o rename de pasta no Windows com o servidor real recém-parado 
 
 ## Instalação
 
-A instalação é pela última versão marcada, nunca por `git clone` nem pela `main`. O vendedor baixa o script pelo endereço do `README.md` e roda: `instalar.sh` e `instalar.ps1` só garantem um Bun que atenda `engines.bun` (instalam o fixado quando falta e nunca rebaixam um mais novo), gravam o instalador embutido numa pasta temporária, rodam `bun <instalador> [pasta]` e apagam a pasta temporária. O `instalar.ps1` não chama `exit`: rodado por `irm | iex`, ele fecharia a janela antes de o vendedor ler a mensagem; a falha sai por `throw`.
+A instalação é pela última versão marcada, nunca por `git clone` nem pela `main`. O vendedor baixa o script pelo endereço do `README.md` e roda: `instalar.sh` e `instalar.ps1` só garantem um Bun que atenda `engines.bun` (instalam o fixado quando falta e nunca rebaixam um mais novo), gravam o instalador embutido numa pasta temporária, rodam `bun <instalador> [pasta]` e apagam a pasta temporária. O `instalar.ps1` não chama `exit`: rodado por `irm | iex`, ele fecharia a janela antes de o vendedor ler a mensagem; a falha sai por `throw`. No Windows, o `README.md` e o `INSTALAR.md` mandam baixar o `instalar.ps1` para um arquivo com `Invoke-WebRequest -OutFile` e rodar `powershell -NoProfile -ExecutionPolicy Bypass -File .\instalar.ps1`, sem `irm | iex`. `testes/conferencias/skills.test.ts` reprova linha com `iex` nos dois arquivos.
 
 ### O instalador embutido
 
@@ -1405,7 +1405,9 @@ A troca renomeia entrada por entrada, e não a pasta inteira: no Windows, a past
 
 `testes/instalacao/pelo-script.ts` é a prova de ponta a ponta, que o job `instalacao` do CI roda no Ubuntu, no macOS e no Windows, ao lado do `nucleo`. Ela monta dois pacotes deste checkout pelo `montarPacote`, a versão do `package.json` e a seguinte maior, com a fonte das versões do código empacotado apontada para a release falsa. O script de verdade, com o bloco montado para a release falsa (`scriptsComOInstalador` com `FonteDeTeste`), instala a primeira por cima de uma pasta que era um clone, num caminho com espaço e acento: `sh` no Linux e no macOS, `powershell -File` (o 5.1) no Windows. As dependências vêm do npm, o `instalar` e o `abrir` são os de verdade, e o cofre fica em arquivo. Depois, uma aba do painel clica em Atualizar, e a prova espera o atualizador gravar `concluido` com a versão nova no ar. Ela fica fora do `bun test`. No Linux, com o cache do Bun quente, ela levou 2,1 s (medido com `time`, em 15 de novembro de 2026).
 
-Não verificado: a prova no macOS e no Windows (só o CI roda), o `curl ... | sh` e o `irm ... | iex` pelo endereço do `raw.githubusercontent.com`, e a troca com um antivírus de verdade segurando arquivo.
+Teste real no Windows, de 16 a 19 de novembro de 2026 (issue 27): o Microsoft Defender barrou a linha `irm ... | iex` antes de o instalador começar (evento 1116, detecção na linha de comando que baixa e executa; o agente viu "UseShellExecute" e "Acesso negado"). O mesmo `instalar.ps1` baixado para um arquivo e rodado com `powershell -NoProfile -ExecutionPolicy Bypass -File` instalou a v0.3.0. Sem `-ExecutionPolicy Bypass`, o Windows PowerShell recusou o arquivo com `UnauthorizedAccess`.
+
+Não verificado: a prova no macOS e no Windows (só o CI roda), o `curl ... | sh` pelo endereço do `raw.githubusercontent.com`, e a troca com um antivírus de verdade segurando arquivo.
 
 ### Os passos do `instalar`
 
