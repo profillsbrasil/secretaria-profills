@@ -94,6 +94,7 @@ function tarefa(id: string, campos: Partial<Tarefa> = {}): Tarefa {
     versao: 1,
     criadaEm: AGORA,
     atualizadaEm: AGORA,
+    conversa: null,
     ...campos,
   };
 }

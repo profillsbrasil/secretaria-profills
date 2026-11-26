@@ -246,6 +246,14 @@ export const tarefa = sqliteTable(
     versao: integer("versao").notNull().default(1),
     criadaEm: text("criada_em").notNull(),
     atualizadaEm: text("atualizada_em").notNull(),
+    /**
+     * A conversa do Meu dia de onde a tarefa nasceu: o canal, a chave (o telefone ou o id do item de
+     * e-mail, as mesmas de `conversa_ignorada`) e `ate`, o instante da última mensagem que o servidor
+     * conhecia ao criar. Os três juntos ou nenhum, e nunca mudam: os gatilhos da migração 0016 cobram.
+     */
+    conversaCanal: text("conversa_canal", { enum: CANAIS_DE_VINCULO }),
+    conversaChave: text("conversa_chave"),
+    conversaAte: text("conversa_ate"),
   },
   (t) => [
     index("tarefa_por_estado").on(t.estado, t.venceEm),

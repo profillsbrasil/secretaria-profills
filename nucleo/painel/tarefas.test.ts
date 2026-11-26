@@ -37,6 +37,7 @@ function tarefa(id: string, campos: Partial<Tarefa> = {}): Tarefa {
     versao: 3,
     criadaEm: ISO,
     atualizadaEm: ISO,
+    conversa: null,
     ...campos,
   };
 }

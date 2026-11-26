@@ -36,6 +36,7 @@ const tarefa: Tarefa = {
   versao: 1,
   criadaEm: ISO,
   atualizadaEm: ISO,
+  conversa: null,
 };
 
 const nota: Nota = { id: 1, tarefaId: "t1", texto: `${ATAQUE}\nsegunda linha`, autor: "agente", proximoPasso: ATAQUE, criadaEm: ISO };

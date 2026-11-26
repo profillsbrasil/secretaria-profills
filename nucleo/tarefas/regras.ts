@@ -11,6 +11,7 @@ import {
   montarBlocosDoCrm,
   type BlocosDeConversas,
   type BlocosDoCrm,
+  type CanalDeVinculo,
   type DadosDasConversas,
   type IgnoradoDeConversa,
   type NaoClienteDoDia,
@@ -62,6 +63,18 @@ export interface Tarefa {
   readonly versao: number;
   readonly criadaEm: Instante;
   readonly atualizadaEm: Instante;
+  /** A conversa do Meu dia de onde a tarefa nasceu. Concluída, a tarefa tira essa conversa de Responder e de Esperando cliente até chegar mensagem nova. */
+  readonly conversa: ConversaDaTarefa | null;
+}
+
+/**
+ * A conversa que a tarefa trata. `chave` é o telefone (WhatsApp) ou o id do item (`e-...`, e-mail).
+ * `ate` é o instante da última mensagem que o servidor conhecia ao criar a tarefa: quem chama nunca o manda.
+ */
+export interface ConversaDaTarefa {
+  readonly canal: CanalDeVinculo;
+  readonly chave: string;
+  readonly ate: Instante;
 }
 
 /** Nota só se anexa: nunca muda nem sai. */
@@ -118,6 +131,7 @@ export interface NovaTarefa {
   readonly propostaCodigo?: string;
   readonly venceEm?: Dia;
   readonly nota?: string;
+  readonly conversa?: ConversaDaTarefa;
 }
 
 /** O que muda numa tarefa que já existe. Toda ação, menos `anotar`, leva a versão que quem chama viu. */
@@ -252,6 +266,7 @@ export function criarTarefa(entrada: NovaTarefa, ctx: Contexto): Decisao & { rea
     versao: 1,
     criadaEm: ctx.agora,
     atualizadaEm: ctx.agora,
+    conversa: entrada.conversa ?? null,
   };
   return { tarefa, seguinte: null, notas: comNota(tarefa.id, entrada.nota, ctx) };
 }
@@ -316,6 +331,20 @@ export function decidir(atual: Tarefa, comando: Comando, ctx: Contexto): Resulta
     case "anotar":
       return ok({ tarefa: null, seguinte: null, notas: [nota(atual.id, comando.texto, ctx, comando.proximoPasso ?? null)] });
   }
+}
+
+/**
+ * As conversas de um canal que uma tarefa concluída tratou, pela chave, com o maior `ate` entre as
+ * concluídas. Aberta e descartada não contam, então reabrir a tarefa traz a conversa de volta.
+ */
+export function conversasTratadas(tarefas: readonly Tarefa[], canal: CanalDeVinculo): Map<string, Instante> {
+  const tratadas = new Map<string, Instante>();
+  for (const { estado, conversa } of tarefas) {
+    if (estado !== "concluida" || conversa === null || conversa.canal !== canal) continue;
+    const anterior = tratadas.get(conversa.chave);
+    if (anterior === undefined || Date.parse(conversa.ate) > Date.parse(anterior)) tratadas.set(conversa.chave, conversa.ate);
+  }
+  return tratadas;
 }
 
 export type Situacao = "atrasada" | "hoje" | "futura" | "sem_data";

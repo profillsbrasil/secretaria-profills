@@ -1,0 +1,1718 @@
+{
+  "id": "9f6688c2-6e35-4448-a466-6e202bfbeb00",
+  "prevId": "525d5db0-3b39-4280-8e04-9e4ed943173d",
+  "version": "6",
+  "dialect": "sqlite",
+  "tables": {
+    "conector": {
+      "name": "conector",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "fase": {
+          "name": "fase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'desconectado'"
+        },
+        "identidade": {
+          "name": "identidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "config": {
+          "name": "config",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "codigo_problema": {
+          "name": "codigo_problema",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conexao_expira_em": {
+          "name": "conexao_expira_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "verificado_em": {
+          "name": "verificado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "nome_no_crm": {
+          "name": "nome_no_crm",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nome_no_crm_lido_em": {
+          "name": "nome_no_crm_lido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "conector_id": {
+          "name": "conector_id",
+          "value": "\"conector\".\"id\" IN ('whatsapp', 'crm', 'email')"
+        },
+        "conector_fase": {
+          "name": "conector_fase",
+          "value": "\"conector\".\"fase\" IN ('desconectado', 'conectado', 'atencao')"
+        },
+        "conector_config_json": {
+          "name": "conector_config_json",
+          "value": "\"conector\".\"config\" IS NULL OR json_valid(\"conector\".\"config\")"
+        },
+        "conector_problema_so_em_atencao": {
+          "name": "conector_problema_so_em_atencao",
+          "value": "(\"conector\".\"fase\" = 'atencao') = (\"conector\".\"codigo_problema\" IS NOT NULL)"
+        },
+        "conector_conectado_verificado": {
+          "name": "conector_conectado_verificado",
+          "value": "\"conector\".\"fase\" <> 'conectado' OR \"conector\".\"verificado_em\" IS NOT NULL"
+        },
+        "conector_conectado_com_identidade": {
+          "name": "conector_conectado_com_identidade",
+          "value": "\"conector\".\"fase\" <> 'conectado' OR \"conector\".\"id\" = 'crm' OR \"conector\".\"identidade\" IS NOT NULL"
+        },
+        "conector_email_com_config": {
+          "name": "conector_email_com_config",
+          "value": "\"conector\".\"id\" <> 'email' OR \"conector\".\"fase\" <> 'conectado' OR \"conector\".\"config\" IS NOT NULL"
+        },
+        "conector_crm_com_prazo": {
+          "name": "conector_crm_com_prazo",
+          "value": "\"conector\".\"id\" <> 'crm' OR \"conector\".\"fase\" <> 'conectado' OR \"conector\".\"conexao_expira_em\" IS NOT NULL"
+        }
+      }
+    },
+    "conferencia_de_versao": {
+      "name": "conferencia_de_versao",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "em": {
+          "name": "em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "resultado": {
+          "name": "resultado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "conferencia_de_versao_unica": {
+          "name": "conferencia_de_versao_unica",
+          "value": "\"conferencia_de_versao\".\"id\" = 1"
+        },
+        "conferencia_de_versao_resultado_json": {
+          "name": "conferencia_de_versao_resultado_json",
+          "value": "json_valid(\"conferencia_de_versao\".\"resultado\")"
+        }
+      }
+    },
+    "contato_vinculo": {
+      "name": "contato_vinculo",
+      "columns": {
+        "canal": {
+          "name": "canal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chave": {
+          "name": "chave",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cliente_id": {
+          "name": "cliente_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_nome": {
+          "name": "cliente_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_cidade": {
+          "name": "cliente_cidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "candidatos": {
+          "name": "candidatos",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conferido_em": {
+          "name": "conferido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "decidido_em": {
+          "name": "decidido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "contato_vinculo_canal_chave_pk": {
+          "columns": [
+            "canal",
+            "chave"
+          ],
+          "name": "contato_vinculo_canal_chave_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "contato_vinculo_canal": {
+          "name": "contato_vinculo_canal",
+          "value": "\"contato_vinculo\".\"canal\" IN ('whatsapp', 'email')"
+        },
+        "contato_vinculo_estado": {
+          "name": "contato_vinculo_estado",
+          "value": "\"contato_vinculo\".\"estado\" IN ('auto', 'confirmado', 'ambiguo', 'nao_cliente', 'sem_cliente')"
+        },
+        "contato_vinculo_chave": {
+          "name": "contato_vinculo_chave",
+          "value": "\"contato_vinculo\".\"canal\" <> 'whatsapp' OR (substr(\"contato_vinculo\".\"chave\", 1, 1) = '+' AND length(\"contato_vinculo\".\"chave\") BETWEEN 9 AND 16)"
+        },
+        "contato_vinculo_cliente_id": {
+          "name": "contato_vinculo_cliente_id",
+          "value": "\"contato_vinculo\".\"cliente_id\" IS NULL OR \"contato_vinculo\".\"cliente_id\" >= 1"
+        },
+        "contato_vinculo_cliente": {
+          "name": "contato_vinculo_cliente",
+          "value": "(\"contato_vinculo\".\"estado\" IN ('auto', 'confirmado')) = (\"contato_vinculo\".\"cliente_id\" IS NOT NULL AND \"contato_vinculo\".\"cliente_nome\" IS NOT NULL) AND (\"contato_vinculo\".\"estado\" IN ('auto', 'confirmado') OR (\"contato_vinculo\".\"cliente_id\" IS NULL AND \"contato_vinculo\".\"cliente_nome\" IS NULL AND \"contato_vinculo\".\"cliente_cidade\" IS NULL))"
+        },
+        "contato_vinculo_candidatos": {
+          "name": "contato_vinculo_candidatos",
+          "value": "CASE WHEN \"contato_vinculo\".\"estado\" IN ('ambiguo', 'nao_cliente') THEN \"contato_vinculo\".\"motivo\" IN ('varios_clientes', 'variante_do_9', 'sem_prova_do_telefone', 'desfeito_pelo_vendedor') AND \"contato_vinculo\".\"candidatos\" IS NOT NULL AND CASE WHEN json_valid(\"contato_vinculo\".\"candidatos\") THEN json_type(\"contato_vinculo\".\"candidatos\") = 'array' AND json_array_length(\"contato_vinculo\".\"candidatos\") >= 1 ELSE 0 END ELSE \"contato_vinculo\".\"motivo\" IS NULL AND \"contato_vinculo\".\"candidatos\" IS NULL END"
+        },
+        "contato_vinculo_decidido": {
+          "name": "contato_vinculo_decidido",
+          "value": "(\"contato_vinculo\".\"estado\" IN ('confirmado', 'nao_cliente')) = (\"contato_vinculo\".\"decidido_em\" IS NOT NULL)"
+        }
+      }
+    },
+    "conversa_ignorada": {
+      "name": "conversa_ignorada",
+      "columns": {
+        "canal": {
+          "name": "canal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chave": {
+          "name": "chave",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ate": {
+          "name": "ate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quem": {
+          "name": "quem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "conversa_ignorada_canal_chave_pk": {
+          "columns": [
+            "canal",
+            "chave"
+          ],
+          "name": "conversa_ignorada_canal_chave_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "conversa_ignorada_canal": {
+          "name": "conversa_ignorada_canal",
+          "value": "\"conversa_ignorada\".\"canal\" IN ('whatsapp', 'email')"
+        },
+        "conversa_ignorada_ate": {
+          "name": "conversa_ignorada_ate",
+          "value": "length(\"conversa_ignorada\".\"ate\") = 10 AND date(\"conversa_ignorada\".\"ate\") IS \"conversa_ignorada\".\"ate\""
+        },
+        "conversa_ignorada_quem": {
+          "name": "conversa_ignorada_quem",
+          "value": "\"conversa_ignorada\".\"quem\" IN ('vendedor', 'agente')"
+        },
+        "conversa_ignorada_motivo": {
+          "name": "conversa_ignorada_motivo",
+          "value": "\"conversa_ignorada\".\"motivo\" IS NULL OR length(\"conversa_ignorada\".\"motivo\") BETWEEN 5 AND 300"
+        },
+        "conversa_ignorada_motivo_do_agente": {
+          "name": "conversa_ignorada_motivo_do_agente",
+          "value": "\"conversa_ignorada\".\"quem\" = 'vendedor' OR \"conversa_ignorada\".\"motivo\" IS NOT NULL"
+        }
+      }
+    },
+    "conversas_cache": {
+      "name": "conversas_cache",
+      "columns": {
+        "chave": {
+          "name": "chave",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "json": {
+          "name": "json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lido_em": {
+          "name": "lido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "conversas_cache_chave": {
+          "name": "conversas_cache_chave",
+          "value": "\"conversas_cache\".\"chave\" = 'atual'"
+        },
+        "conversas_cache_json": {
+          "name": "conversas_cache_json",
+          "value": "json_valid(\"conversas_cache\".\"json\")"
+        }
+      }
+    },
+    "crm_cache": {
+      "name": "crm_cache",
+      "columns": {
+        "recurso": {
+          "name": "recurso",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "chave": {
+          "name": "chave",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "json": {
+          "name": "json",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lido_em": {
+          "name": "lido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "crm_cache_recurso_chave_pk": {
+          "columns": [
+            "recurso",
+            "chave"
+          ],
+          "name": "crm_cache_recurso_chave_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "crm_cache_recurso": {
+          "name": "crm_cache_recurso",
+          "value": "\"crm_cache\".\"recurso\" IN ('agenda', 'propostas', 'carteira', 'proposta_link')"
+        },
+        "crm_cache_json": {
+          "name": "crm_cache_json",
+          "value": "json_valid(\"crm_cache\".\"json\")"
+        }
+      }
+    },
+    "decisao": {
+      "name": "decisao",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "escrita_id": {
+          "name": "escrita_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "acao": {
+          "name": "acao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hash": {
+          "name": "hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "em": {
+          "name": "em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "decisao_escrita_id_escrita_crm_id_fk": {
+          "name": "decisao_escrita_id_escrita_crm_id_fk",
+          "tableFrom": "decisao",
+          "columnsFrom": [
+            "escrita_id"
+          ],
+          "tableTo": "escrita_crm",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "decisao_acao": {
+          "name": "decisao_acao",
+          "value": "\"decisao\".\"acao\" IN ('aprovou', 'editou', 'descartou', 'retirou', 'ja_esta_no_crm', 'tentou_de_novo')"
+        },
+        "decisao_hash": {
+          "name": "decisao_hash",
+          "value": "length(\"decisao\".\"hash\") = 64"
+        }
+      }
+    },
+    "email_cabecalho": {
+      "name": "email_cabecalho",
+      "columns": {
+        "conta_id": {
+          "name": "conta_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pasta": {
+          "name": "pasta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "uid": {
+          "name": "uid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "message_id": {
+          "name": "message_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conversa": {
+          "name": "conversa",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "remetente": {
+          "name": "remetente",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "remetente_nome": {
+          "name": "remetente_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "destinatarios": {
+          "name": "destinatarios",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "instante": {
+          "name": "instante",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "assunto": {
+          "name": "assunto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "da_conta": {
+          "name": "da_conta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "automatico": {
+          "name": "automatico",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sinais_do_assunto": {
+          "name": "sinais_do_assunto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "sinais_do_nome": {
+          "name": "sinais_do_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "email_cabecalho_conta_id_email_conta_id_fk": {
+          "name": "email_cabecalho_conta_id_email_conta_id_fk",
+          "tableFrom": "email_cabecalho",
+          "columnsFrom": [
+            "conta_id"
+          ],
+          "tableTo": "email_conta",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "email_cabecalho_conta_id_pasta_uid_pk": {
+          "columns": [
+            "conta_id",
+            "pasta",
+            "uid"
+          ],
+          "name": "email_cabecalho_conta_id_pasta_uid_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "email_cabecalho_pasta": {
+          "name": "email_cabecalho_pasta",
+          "value": "\"email_cabecalho\".\"pasta\" IN ('entrada', 'enviados')"
+        },
+        "email_cabecalho_uid": {
+          "name": "email_cabecalho_uid",
+          "value": "\"email_cabecalho\".\"uid\" >= 1"
+        },
+        "email_cabecalho_da_conta": {
+          "name": "email_cabecalho_da_conta",
+          "value": "\"email_cabecalho\".\"da_conta\" IN (0, 1)"
+        },
+        "email_cabecalho_automatico": {
+          "name": "email_cabecalho_automatico",
+          "value": "\"email_cabecalho\".\"automatico\" IN (0, 1)"
+        },
+        "email_cabecalho_destinatarios_json": {
+          "name": "email_cabecalho_destinatarios_json",
+          "value": "json_valid(\"email_cabecalho\".\"destinatarios\")"
+        },
+        "email_cabecalho_sinais_do_assunto_json": {
+          "name": "email_cabecalho_sinais_do_assunto_json",
+          "value": "json_valid(\"email_cabecalho\".\"sinais_do_assunto\")"
+        },
+        "email_cabecalho_sinais_do_nome_json": {
+          "name": "email_cabecalho_sinais_do_nome_json",
+          "value": "json_valid(\"email_cabecalho\".\"sinais_do_nome\")"
+        },
+        "email_cabecalho_remetente_minusculo": {
+          "name": "email_cabecalho_remetente_minusculo",
+          "value": "\"email_cabecalho\".\"remetente\" = lower(\"email_cabecalho\".\"remetente\")"
+        }
+      }
+    },
+    "email_conta": {
+      "name": "email_conta",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "rotulo": {
+          "name": "rotulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "provedor": {
+          "name": "provedor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "endereco": {
+          "name": "endereco",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "servidor": {
+          "name": "servidor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "porta": {
+          "name": "porta",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "seguranca": {
+          "name": "seguranca",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "janela_dias": {
+          "name": "janela_dias",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 30
+        },
+        "fase": {
+          "name": "fase",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'desconectado'"
+        },
+        "codigo_problema": {
+          "name": "codigo_problema",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "verificado_em": {
+          "name": "verificado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "senha_legada": {
+          "name": "senha_legada",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 0
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "atualizado_em": {
+          "name": "atualizado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "email_conta_rotulo_unico": {
+          "name": "email_conta_rotulo_unico",
+          "columns": [
+            "\"rotulo\" COLLATE NOCASE"
+          ],
+          "isUnique": true
+        },
+        "email_conta_endereco_unico": {
+          "name": "email_conta_endereco_unico",
+          "columns": [
+            "\"endereco\" COLLATE NOCASE"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "email_conta_rotulo": {
+          "name": "email_conta_rotulo",
+          "value": "length(trim(\"email_conta\".\"rotulo\")) BETWEEN 1 AND 30"
+        },
+        "email_conta_provedor": {
+          "name": "email_conta_provedor",
+          "value": "\"email_conta\".\"provedor\" IN ('profills', 'gmail', 'outro')"
+        },
+        "email_conta_porta": {
+          "name": "email_conta_porta",
+          "value": "\"email_conta\".\"porta\" BETWEEN 1 AND 65535"
+        },
+        "email_conta_seguranca": {
+          "name": "email_conta_seguranca",
+          "value": "\"email_conta\".\"seguranca\" IN ('tls', 'starttls')"
+        },
+        "email_conta_janela": {
+          "name": "email_conta_janela",
+          "value": "\"email_conta\".\"janela_dias\" IN (30, 60, 90)"
+        },
+        "email_conta_fase": {
+          "name": "email_conta_fase",
+          "value": "\"email_conta\".\"fase\" IN ('desconectado', 'conectado', 'atencao')"
+        },
+        "email_conta_problema_so_em_atencao": {
+          "name": "email_conta_problema_so_em_atencao",
+          "value": "(\"email_conta\".\"fase\" = 'atencao') = (\"email_conta\".\"codigo_problema\" IS NOT NULL)"
+        },
+        "email_conta_conectado_verificado": {
+          "name": "email_conta_conectado_verificado",
+          "value": "\"email_conta\".\"fase\" <> 'conectado' OR \"email_conta\".\"verificado_em\" IS NOT NULL"
+        },
+        "email_conta_senha_legada": {
+          "name": "email_conta_senha_legada",
+          "value": "\"email_conta\".\"senha_legada\" IN (0, 1)"
+        }
+      }
+    },
+    "email_cursor": {
+      "name": "email_cursor",
+      "columns": {
+        "conta_id": {
+          "name": "conta_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "pasta": {
+          "name": "pasta",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "caminho": {
+          "name": "caminho",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "uid_validity": {
+          "name": "uid_validity",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ultimo_uid": {
+          "name": "ultimo_uid",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "lido_em": {
+          "name": "lido_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "email_cursor_conta_id_email_conta_id_fk": {
+          "name": "email_cursor_conta_id_email_conta_id_fk",
+          "tableFrom": "email_cursor",
+          "columnsFrom": [
+            "conta_id"
+          ],
+          "tableTo": "email_conta",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "email_cursor_conta_id_pasta_pk": {
+          "columns": [
+            "conta_id",
+            "pasta"
+          ],
+          "name": "email_cursor_conta_id_pasta_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "email_cursor_pasta": {
+          "name": "email_cursor_pasta",
+          "value": "\"email_cursor\".\"pasta\" IN ('entrada', 'enviados')"
+        },
+        "email_cursor_ultimo_uid": {
+          "name": "email_cursor_ultimo_uid",
+          "value": "\"email_cursor\".\"ultimo_uid\" >= 0"
+        }
+      }
+    },
+    "escrita_crm": {
+      "name": "escrita_crm",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tool": {
+          "name": "tool",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "payload": {
+          "name": "payload",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "hash": {
+          "name": "hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cliente_id": {
+          "name": "cliente_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_conferido": {
+          "name": "cliente_conferido",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "cliente_nome": {
+          "name": "cliente_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_cidade": {
+          "name": "cliente_cidade",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "confira_cliente": {
+          "name": "confira_cliente",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "sinais": {
+          "name": "sinais",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'rascunho'"
+        },
+        "crm_id": {
+          "name": "crm_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "crm_link": {
+          "name": "crm_link",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erro_codigo": {
+          "name": "erro_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "erro_detalhe": {
+          "name": "erro_detalhe",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "versao": {
+          "name": "versao",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "atualizada_em": {
+          "name": "atualizada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ordem": {
+          "name": "ordem",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "escrita_crm_ordem": {
+          "name": "escrita_crm_ordem",
+          "columns": [
+            "ordem"
+          ],
+          "isUnique": true
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "escrita_crm_tool": {
+          "name": "escrita_crm_tool",
+          "value": "\"escrita_crm\".\"tool\" IN ('registrar_atendimento', 'criar_compromisso', 'criar_contato')"
+        },
+        "escrita_crm_estado": {
+          "name": "escrita_crm_estado",
+          "value": "\"escrita_crm\".\"estado\" IN ('rascunho', 'aprovado', 'gravando', 'gravado', 'falhou', 'falhou_incerto', 'descartado')"
+        },
+        "escrita_crm_payload": {
+          "name": "escrita_crm_payload",
+          "value": "json_valid(\"escrita_crm\".\"payload\")"
+        },
+        "escrita_crm_sinais": {
+          "name": "escrita_crm_sinais",
+          "value": "json_valid(\"escrita_crm\".\"sinais\")"
+        },
+        "escrita_crm_hash": {
+          "name": "escrita_crm_hash",
+          "value": "length(\"escrita_crm\".\"hash\") = 64"
+        },
+        "escrita_crm_cliente_id": {
+          "name": "escrita_crm_cliente_id",
+          "value": "\"escrita_crm\".\"cliente_id\" IS NULL OR \"escrita_crm\".\"cliente_id\" >= 1"
+        },
+        "escrita_crm_versao": {
+          "name": "escrita_crm_versao",
+          "value": "\"escrita_crm\".\"versao\" >= 1"
+        },
+        "escrita_crm_cliente": {
+          "name": "escrita_crm_cliente",
+          "value": "CASE WHEN \"escrita_crm\".\"cliente_conferido\" = 1 THEN \"escrita_crm\".\"cliente_id\" IS NOT NULL AND \"escrita_crm\".\"cliente_nome\" IS NOT NULL ELSE \"escrita_crm\".\"cliente_conferido\" = 0 AND \"escrita_crm\".\"cliente_nome\" IS NULL AND \"escrita_crm\".\"cliente_cidade\" IS NULL END"
+        },
+        "escrita_crm_confira_cliente": {
+          "name": "escrita_crm_confira_cliente",
+          "value": "\"escrita_crm\".\"confira_cliente\" IN (0, 1) AND (\"escrita_crm\".\"confira_cliente\" = 0 OR \"escrita_crm\".\"cliente_id\" IS NOT NULL)"
+        },
+        "escrita_crm_recibo": {
+          "name": "escrita_crm_recibo",
+          "value": "\"escrita_crm\".\"estado\" = 'gravado' OR (\"escrita_crm\".\"crm_id\" IS NULL AND \"escrita_crm\".\"crm_link\" IS NULL)"
+        },
+        "escrita_crm_erro": {
+          "name": "escrita_crm_erro",
+          "value": "(\"escrita_crm\".\"estado\" IN ('falhou', 'falhou_incerto')) = (\"escrita_crm\".\"erro_codigo\" IS NOT NULL) AND (\"escrita_crm\".\"erro_detalhe\" IS NULL OR \"escrita_crm\".\"erro_codigo\" IS NOT NULL)"
+        }
+      }
+    },
+    "evento_conector": {
+      "name": "evento_conector",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "conector": {
+          "name": "conector",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "detalhe": {
+          "name": "detalhe",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "em": {
+          "name": "em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "evento_conector_por_conector": {
+          "name": "evento_conector_por_conector",
+          "columns": [
+            "conector",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "evento_conector_conector_conector_id_fk": {
+          "name": "evento_conector_conector_conector_id_fk",
+          "tableFrom": "evento_conector",
+          "columnsFrom": [
+            "conector"
+          ],
+          "tableTo": "conector",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "evento_conector_detalhe_json": {
+          "name": "evento_conector_detalhe_json",
+          "value": "json_valid(\"evento_conector\".\"detalhe\")"
+        }
+      }
+    },
+    "evento_email": {
+      "name": "evento_email",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "conta_id": {
+          "name": "conta_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "detalhe": {
+          "name": "detalhe",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'{}'"
+        },
+        "em": {
+          "name": "em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "evento_email_por_conta": {
+          "name": "evento_email_por_conta",
+          "columns": [
+            "conta_id",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "evento_email_conta_id_email_conta_id_fk": {
+          "name": "evento_email_conta_id_email_conta_id_fk",
+          "tableFrom": "evento_email",
+          "columnsFrom": [
+            "conta_id"
+          ],
+          "tableTo": "email_conta",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "evento_email_detalhe_json": {
+          "name": "evento_email_detalhe_json",
+          "value": "json_valid(\"evento_email\".\"detalhe\")"
+        }
+      }
+    },
+    "instalacao": {
+      "name": "instalacao",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "id_instalacao": {
+          "name": "id_instalacao",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cofre_backend": {
+          "name": "cofre_backend",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "email_pulado_em": {
+          "name": "email_pulado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nome_do_vendedor": {
+          "name": "nome_do_vendedor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nome_perguntado_em": {
+          "name": "nome_perguntado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "instalacao_unica": {
+          "name": "instalacao_unica",
+          "value": "\"instalacao\".\"id\" = 1"
+        },
+        "instalacao_cofre_backend": {
+          "name": "instalacao_cofre_backend",
+          "value": "\"instalacao\".\"cofre_backend\" IS NULL OR \"instalacao\".\"cofre_backend\" IN ('sistema', 'arquivo')"
+        }
+      }
+    },
+    "item_ignorado": {
+      "name": "item_ignorado",
+      "columns": {
+        "tipo": {
+          "name": "tipo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "crm_id": {
+          "name": "crm_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "ate": {
+          "name": "ate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "criado_em": {
+          "name": "criado_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "quem": {
+          "name": "quem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'vendedor'"
+        },
+        "motivo": {
+          "name": "motivo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "nome": {
+          "name": "nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
+        },
+        "codigo": {
+          "name": "codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "item_ignorado_tipo_crm_id_pk": {
+          "columns": [
+            "tipo",
+            "crm_id"
+          ],
+          "name": "item_ignorado_tipo_crm_id_pk"
+        }
+      },
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "item_ignorado_tipo": {
+          "name": "item_ignorado_tipo",
+          "value": "\"item_ignorado\".\"tipo\" IN ('proposta', 'cliente')"
+        },
+        "item_ignorado_crm_id": {
+          "name": "item_ignorado_crm_id",
+          "value": "\"item_ignorado\".\"crm_id\" >= 1"
+        },
+        "item_ignorado_ate": {
+          "name": "item_ignorado_ate",
+          "value": "length(\"item_ignorado\".\"ate\") = 10 AND date(\"item_ignorado\".\"ate\") IS \"item_ignorado\".\"ate\""
+        },
+        "item_ignorado_quem": {
+          "name": "item_ignorado_quem",
+          "value": "\"item_ignorado\".\"quem\" IN ('vendedor', 'agente')"
+        },
+        "item_ignorado_motivo": {
+          "name": "item_ignorado_motivo",
+          "value": "\"item_ignorado\".\"motivo\" IS NULL OR length(\"item_ignorado\".\"motivo\") BETWEEN 5 AND 300"
+        },
+        "item_ignorado_motivo_do_agente": {
+          "name": "item_ignorado_motivo_do_agente",
+          "value": "\"item_ignorado\".\"quem\" = 'vendedor' OR \"item_ignorado\".\"motivo\" IS NOT NULL"
+        }
+      }
+    },
+    "nota": {
+      "name": "nota",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": true
+        },
+        "tarefa_id": {
+          "name": "tarefa_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "texto": {
+          "name": "texto",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "autor": {
+          "name": "autor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "proximo_passo": {
+          "name": "proximo_passo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "nota_por_tarefa": {
+          "name": "nota_por_tarefa",
+          "columns": [
+            "tarefa_id",
+            "id"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {
+        "nota_tarefa_id_tarefa_id_fk": {
+          "name": "nota_tarefa_id_tarefa_id_fk",
+          "tableFrom": "nota",
+          "columnsFrom": [
+            "tarefa_id"
+          ],
+          "tableTo": "tarefa",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "nota_autor": {
+          "name": "nota_autor",
+          "value": "\"nota\".\"autor\" IN ('vendedor', 'agente')"
+        },
+        "nota_texto": {
+          "name": "nota_texto",
+          "value": "length(\"nota\".\"texto\") BETWEEN 1 AND 4000"
+        },
+        "nota_proximo_passo": {
+          "name": "nota_proximo_passo",
+          "value": "\"nota\".\"proximo_passo\" IS NULL OR length(\"nota\".\"proximo_passo\") BETWEEN 1 AND 500"
+        }
+      }
+    },
+    "tarefa": {
+      "name": "tarefa",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "titulo": {
+          "name": "titulo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "cliente_id": {
+          "name": "cliente_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_nome": {
+          "name": "cliente_nome",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "cliente_conferido": {
+          "name": "cliente_conferido",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": false
+        },
+        "proposta_codigo": {
+          "name": "proposta_codigo",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "vence_em": {
+          "name": "vence_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "estado": {
+          "name": "estado",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "'aberta'"
+        },
+        "origem": {
+          "name": "origem",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "versao": {
+          "name": "versao",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": 1
+        },
+        "criada_em": {
+          "name": "criada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "atualizada_em": {
+          "name": "atualizada_em",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
+        "conversa_canal": {
+          "name": "conversa_canal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conversa_chave": {
+          "name": "conversa_chave",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        },
+        "conversa_ate": {
+          "name": "conversa_ate",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false,
+          "autoincrement": false
+        }
+      },
+      "indexes": {
+        "tarefa_por_estado": {
+          "name": "tarefa_por_estado",
+          "columns": [
+            "estado",
+            "vence_em"
+          ],
+          "isUnique": false
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "checkConstraints": {
+        "tarefa_estado": {
+          "name": "tarefa_estado",
+          "value": "\"tarefa\".\"estado\" IN ('aberta', 'concluida', 'descartada')"
+        },
+        "tarefa_origem": {
+          "name": "tarefa_origem",
+          "value": "\"tarefa\".\"origem\" IN ('vendedor', 'agente')"
+        },
+        "tarefa_titulo": {
+          "name": "tarefa_titulo",
+          "value": "length(\"tarefa\".\"titulo\") BETWEEN 1 AND 200"
+        },
+        "tarefa_vence_em": {
+          "name": "tarefa_vence_em",
+          "value": "\"tarefa\".\"vence_em\" IS NULL OR (length(\"tarefa\".\"vence_em\") = 10 AND date(\"tarefa\".\"vence_em\") IS \"tarefa\".\"vence_em\")"
+        },
+        "tarefa_versao": {
+          "name": "tarefa_versao",
+          "value": "\"tarefa\".\"versao\" >= 1"
+        }
+      }
+    }
+  },
+  "views": {},
+  "enums": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  },
+  "internal": {
+    "indexes": {
+      "email_conta_rotulo_unico": {
+        "columns": {
+          "\"rotulo\" COLLATE NOCASE": {
+            "isExpression": true
+          }
+        }
+      },
+      "email_conta_endereco_unico": {
+        "columns": {
+          "\"endereco\" COLLATE NOCASE": {
+            "isExpression": true
+          }
+        }
+      }
+    }
+  }
+}
