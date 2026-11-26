@@ -773,8 +773,8 @@ describe("e-mail nos blocos de conversas", () => {
     vinculo: "auto",
     cliente: cliente(9200 + final),
   });
-  const NO_WA = { lido_em: LIDO, motivo: null, cortado: false, ignorados: 0 } as const;
-  const SEM_WA = { lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0 } as const;
+  const NO_WA = { lido_em: LIDO, motivo: null, cortado: false, ignorados: 0, tratados: 0 } as const;
+  const SEM_WA = { lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0, tratados: 0 } as const;
 
   /** Responder com os itens dados; o WhatsApp lido por padrão. */
   const comResponder = (itens: ItemDeResponder[], email: LeituraDoEmailNoBloco, whatsapp: Omit<MeuDia["responder"], "itens" | "email"> = NO_WA): MeuDia => {

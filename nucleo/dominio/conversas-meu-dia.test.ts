@@ -142,7 +142,7 @@ describe("blocos de conversas do Meu dia", () => {
 
   test("sem leitura, o motivo vem do estado do WhatsApp", () => {
     const desconectado = montarBlocosDeConversas(SEM_CONVERSAS, { fase: "desconectado" });
-    expect(desconectado.responder).toEqual({ itens: [], lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0, email: { lido_em: null, motivo: "email_sem_conta", cortado: false, contas_lidas: 0, contas: 0, contas_sem_enviados: [] } });
+    expect(desconectado.responder).toEqual({ itens: [], lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0, tratados: 0, email: { lido_em: null, motivo: "email_sem_conta", cortado: false, contas_lidas: 0, contas: 0, contas_sem_enviados: [] } });
     expect(desconectado.esperando_cliente.motivo).toBe("whatsapp_desconectado");
     const atencao = montarBlocosDeConversas(SEM_CONVERSAS, { fase: "atencao", problema: { codigo: "whatsapp_sessao_revogada" } as never, conta: null });
     expect(atencao.responder.motivo).toBe("whatsapp_em_atencao");

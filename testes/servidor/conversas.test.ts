@@ -78,7 +78,7 @@ describe("blocos Responder e Esperando cliente no Meu dia", () => {
     await p.servidor.pronto;
     const vazio = await meuDia(p);
     for (const bloco of [vazio.responder, vazio.esperando_cliente]) {
-      expect(bloco).toEqual({ itens: [], lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0, email: { lido_em: null, motivo: "email_sem_conta", cortado: false, contas_lidas: 0, contas: 0, contas_sem_enviados: [] } });
+      expect(bloco).toEqual({ itens: [], lido_em: null, motivo: "whatsapp_desconectado", cortado: false, ignorados: 0, tratados: 0, email: { lido_em: null, motivo: "email_sem_conta", cortado: false, contas_lidas: 0, contas: 0, contas_sem_enviados: [] } });
     }
   });
 
