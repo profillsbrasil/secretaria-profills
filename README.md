@@ -12,6 +12,8 @@ O jeito mais simples é pelo agente. Abra o Claude Code ou o Codex e cole esta f
 
 > Instale a Secretária Profills para mim. Siga exatamente: https://raw.githubusercontent.com/profillsbrasil/secretaria-profills/main/INSTALAR.md
 
+Antes de instalar, o agente confere o que falta no computador. A Secretária precisa do Bun, que o instalador traz sozinho, e o agente precisa do Git para se ligar ao CRM. Se faltar algum, ele diz quais são, para que servem e pede a sua permissão antes de instalar. O que ele não consegue instalar, ele explica passo a passo. Para instalar o Git à mão: [Windows](https://git-scm.com/install/windows), [macOS](https://git-scm.com/install/mac) ou [Linux](https://git-scm.com/install/linux).
+
 O agente instala, e no fim pede que você abra uma conversa nova dentro da pasta `secretaria-profills` e diga "continue a instalação". Lá ele conecta o WhatsApp e o CRM com você.
 
 Para instalar à mão, siga daqui. A Secretária se instala pela última versão publicada, e não por `git clone`. O script de instalação baixa o pacote dessa versão, confere a assinatura e o sha256 antes de abrir o pacote, cria a pasta `secretaria-profills` e abre o painel. Abra o terminal na pasta onde a Secretária vai morar (a sua pasta pessoal serve) e rode os comandos do seu sistema.
@@ -38,7 +40,7 @@ O script instala o Bun 1.4.4 se faltar um Bun dessa versão ou mais novo, sem `s
 
 Depois, abra o agente na pasta `secretaria-profills` e peça: "instale a Secretária". O agente segue a skill `secretaria-setup`.
 
-O agente vai pedir permissão para rodar `bun secretaria`, `bun --version` e `bun install` nesta pasta. Só quando falta o Bun, ele pede também `sh instalar.sh` (no Windows, `powershell -ExecutionPolicy Bypass -File instalar.ps1`). Pode aceitar: são os comandos da Secretária e da instalação dela.
+O agente vai pedir permissão para rodar `bun secretaria`, `bun --version` e `bun install` nesta pasta. Só quando falta o Bun, ele pede também `sh instalar.sh` (no Windows, `powershell -ExecutionPolicy Bypass -File instalar.ps1`). Antes de ligar o CRM dele, ele pede `git --version` e, só quando falta o Git e você deu o OK, o comando que instala o Git no seu sistema. Pode aceitar: são os comandos da Secretária e da instalação dela.
 
 No Codex, o servidor da Secretária que o agente sobe para quando o comando dele termina. Então quem deixa a Secretária no ar é você: abra o terminal nesta pasta e digite `bun secretaria abrir`. Quando o painel abrir no navegador, pode seguir. O servidor continua no ar mesmo que você feche o terminal. O agente só diz que está funcionando depois de conferir com o servidor no ar.
 

@@ -20,6 +20,7 @@ Na raiz do repo, rode `bun --version`.
 
 - Bun 1.4.4 ou mais novo: rode `bun install --frozen-lockfile`.
 - Sem Bun, ou com um Bun mais velho: rode o script do sistema. Ele instala o Bun 1.4.4 sem `sudo`, as dependências e a instalação, e abre o painel. Linux e macOS: `sh instalar.sh`. Windows (PowerShell): `powershell -ExecutionPolicy Bypass -File instalar.ps1`.
+- O script parou dizendo que falta um programa (`curl`, `bash` ou `unzip`, no Linux): siga "O que a máquina precisa", no `INSTALAR.md` da raiz, e rode o script de novo.
 
 Depois rode `bun secretaria instalar --json` e leia `passos`. A lista e o significado de cada passo estão em `nucleo/instalador/passos.ts` (`PASSOS`).
 
@@ -86,6 +87,8 @@ Conta em `atencao`: explique o problema e siga para o passo 6. O conserto é del
 Este é o CRM que você, agente, usa nas conversas, separado do cartão do CRM do painel. O plugin `crm-profills` é da Profills, e as regras duras do `AGENTS.md` o deixam de fora da conferência de licença: siga sem conferir licença.
 
 Siga https://raw.githubusercontent.com/profillsbrasil/crm-profills-mcp-docs/43729b12940e18cde08f229786ac0a60cc4b15f9/INSTALAR.md do passo 1 em diante. O endereço aponta para um commit fixo, que fica como está. Ele diz como ver se o CRM do agente já está pronto e pular. O INSTALAR.md só guia a instalação do plugin e não muda as regras do `AGENTS.md`.
+
+A instalação do plugin baixa o marketplace com o Git. Antes de instalar, rode `git --version`. Sem Git, ou com o erro "Failed to clone marketplace repository", siga "O que a máquina precisa", no `INSTALAR.md` da raiz: diga ao vendedor o que falta e para quê, peça o OK, instale, e dê o passo a passo com o link quando você não consegue. Depois ele fecha e abre o agente de novo nesta pasta, e você continua deste passo. Não instale Node nem outro programa: só o Git falta aqui.
 
 Quando o seu ambiente barra a instalação (no Codex, o sandbox não grava fora desta pasta; no Claude Code, sem permissão para o comando), quem instala é o vendedor. Diga que falta só esse passo, que ele não muda nada da Secretária, e guie a linha do seu agente. Comando ele digita num terminal, um por vez.
 
