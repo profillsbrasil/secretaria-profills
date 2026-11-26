@@ -615,6 +615,143 @@ describe("Criar tarefa a partir de uma conversa", () => {
   });
 });
 
+describe("concluir a tarefa de uma conversa a tira do Meu dia até chegar mensagem nova", () => {
+  const criar = (p: Palco, telefone: string) => dados<RespostaDaTarefa>(p.painel("/api/meu-dia/tarefas", comCorpo({ tipo: "conversa", canal: "whatsapp", id: telefone, tarefaId: crypto.randomUUID() })));
+  const agir = (p: Palco, criada: RespostaDaTarefa, acao: string, corpo: Record<string, unknown> = {}) =>
+    dados<RespostaDaTarefa>(p.painel(`/api/tarefas/${criada.tarefa.id}/${acao}`, comCorpo({ versao: criada.tarefa.versao, ...corpo })));
+  /** A conversa de `TEL.unico` com uma mensagem nova do cliente às 14h30, meia hora antes do relógio do palco. */
+  const mensagemNova = (p: Palco) => {
+    const leituras = cenario();
+    const nova = "2026-11-13T14:30:00Z";
+    p.bancada.roteiro({
+      auth: [],
+      sync: [],
+      leituras: {
+        ...leituras,
+        chats: leituras.chats?.map((c) => (c.jid === jid(TEL.unico) ? { ...c, last_message_ts: nova } : c)),
+        mensagens: [...(leituras.mensagens ?? []), { ...(leituras.mensagens ?? []).find((m) => m.ChatJID === jid(TEL.unico))!, MsgID: "3EB0CANARIONOVA", Timestamp: nova }],
+      },
+    });
+  };
+
+  test("criar não tira; concluir tira de Responder, conta em tratados e deixa as outras conversas", async () => {
+    const p = await subirSincronizado();
+    const criada = await criar(p, T(TEL.unico));
+    expect(criada.tarefa.conversa as unknown).toEqual({ canal: "whatsapp", chave: T(TEL.unico), ate: "2026-11-13T14:00:00.000Z" });
+    let dia = await meuDia(p);
+    expect(telefones(dia.responder)).toContain(T(TEL.unico));
+    expect(dia.responder.tratados).toBe(0);
+
+    const eventos = await p.eventosDoPainel();
+    await agir(p, criada, "concluir");
+    await eventos.ateTexto("event: tarefas", "aviso para o painel recarregar");
+    dia = await meuDia(p);
+    expect(telefones(dia.responder)).not.toContain(T(TEL.unico));
+    expect(dia.responder).toMatchObject({ tratados: 1, ignorados: 0 });
+    expect(telefones(dia.responder)).toEqual(expect.arrayContaining([T(TEL.doisClientes), T(TEL.suspeito)]));
+    expect(telefones(dia.esperando_cliente)).toEqual([T(TEL.lid)]);
+    expect(dia.esperando_cliente.tratados).toBe(0);
+  });
+
+  test("Esperando cliente: concluir Acompanhar tira a conversa; descartar não tira", async () => {
+    const p = await subirSincronizado();
+    const descartada = await criar(p, T(TEL.lid));
+    await agir(p, descartada, "descartar");
+    expect((await meuDia(p)).esperando_cliente).toMatchObject({ tratados: 0 });
+    expect(telefones((await meuDia(p)).esperando_cliente)).toEqual([T(TEL.lid)]);
+
+    await agir(p, await criar(p, T(TEL.lid)), "concluir");
+    expect((await meuDia(p)).esperando_cliente).toMatchObject({ itens: [], tratados: 1, motivo: "sem_itens" });
+  });
+
+  test("reabrir a tarefa no painel traz a conversa de volta", async () => {
+    const p = await subirSincronizado();
+    const concluida = await agir(p, await criar(p, T(TEL.unico)), "concluir");
+    expect(telefones((await meuDia(p)).responder)).not.toContain(T(TEL.unico));
+    await agir(p, concluida, "reabrir");
+    const dia = await meuDia(p);
+    expect(telefones(dia.responder)).toContain(T(TEL.unico));
+    expect(dia.responder.tratados).toBe(0);
+  });
+
+  test("mensagem nova depois da criação traz a conversa de volta, mesmo que chegue antes de concluir", async () => {
+    const p = await subirSincronizado();
+    const criada = await criar(p, T(TEL.unico));
+    mensagemNova(p);
+    await dados(p.painel("/api/sincronizar", { method: "POST" }));
+    await agir(p, criada, "concluir");
+    const dia = await meuDia(p);
+    expect(dia.responder.itens.find((i) => i.telefone === T(TEL.unico))).toMatchObject({ novas: 2 });
+    expect(dia.responder.tratados).toBe(0);
+  });
+
+  test("continua fora depois de reiniciar o servidor e de sincronizar de novo; a mensagem nova a traz", async () => {
+    const p = await subirSincronizado();
+    await agir(p, await criar(p, T(TEL.unico)), "concluir");
+    await p.reiniciar();
+    await p.servidor.pronto;
+    expect(telefones((await meuDia(p)).responder)).not.toContain(T(TEL.unico));
+    await dados(p.painel("/api/sincronizar", { method: "POST" }));
+    expect((await meuDia(p)).responder).toMatchObject({ tratados: 1 });
+    expect(telefones((await meuDia(p)).responder)).not.toContain(T(TEL.unico));
+
+    mensagemNova(p);
+    await dados(p.painel("/api/sincronizar", { method: "POST" }));
+    expect(telefones((await meuDia(p)).responder)).toContain(T(TEL.unico));
+  });
+
+  test("o próximo passo não herda a conversa, e a tarefa sem a conversa não tira nada, nem do mesmo cliente", async () => {
+    const p = await subirSincronizado();
+    const semConversa = await dados<RespostaDaTarefa>(p.painel("/api/tarefas", comCorpo({ titulo: "Ligar para o cliente", clienteId: "9201" })));
+    expect(semConversa.tarefa.conversa).toBeNull();
+    await agir(p, semConversa, "concluir");
+    expect(telefones((await meuDia(p)).responder)).toContain(T(TEL.unico));
+
+    const concluida = await agir(p, await criar(p, T(TEL.unico)), "concluir", { proximoPasso: "Mandar a tabela nova" });
+    expect(concluida.seguinte).toMatchObject({ estado: "aberta", clienteId: "9201", conversa: null });
+    expect(telefones((await meuDia(p)).responder)).not.toContain(T(TEL.unico));
+  });
+});
+
+describe("o agente cria a tarefa de uma conversa pelo CLI", () => {
+  const meuDiaPeloCli = async (p: Palco) => (await rodar(p.bancada.dirDados, ["meu-dia"])).stdout;
+
+  test("tarefa criar --conversa prende a tarefa à conversa e põe o cliente dela; concluir pelo CLI tira a conversa e o cabeçalho conta", async () => {
+    const p = await subirSincronizado();
+    const criada = await rodar(p.bancada.dirDados, ["tarefa", "criar", "responder", "--conversa", TEL.unico, "--json"]);
+    expect(criada.codigo).toBe(0);
+    const tarefa = (criada.envelope?.dados as RespostaDaTarefa).tarefa;
+    expect(tarefa).toMatchObject({ titulo: "Responder: CANARIO Cliente 9201", clienteId: "9201", origem: "agente", venceEm: null, conversa: { canal: "whatsapp", chave: T(TEL.unico) } });
+    expect(telefones((await meuDia(p, "agente")).responder)).toContain(T(TEL.unico));
+
+    const concluida = await rodar(p.bancada.dirDados, ["tarefa", "concluir", tarefa.id, "--versao", "1"]);
+    expect(concluida.codigo).toBe(0);
+    expect(telefones((await meuDia(p, "agente")).responder)).not.toContain(T(TEL.unico));
+    expect(await meuDiaPeloCli(p)).toContain("Responder (3, lido em ");
+    expect(await meuDiaPeloCli(p)).toContain(", 1 fora por tarefa concluída até chegar mensagem nova");
+  });
+
+  test("recusa conversa fora dos blocos, conversa sem cliente escolhido, cliente que não é o da conversa e as duas opções juntas", async () => {
+    const p = await subirSincronizado();
+    const codigo = async (args: string[]) => {
+      const saida = await rodar(p.bancada.dirDados, ["tarefa", "criar", "responder", ...args, "--json"]);
+      return { saida: saida.codigo, erro: saida.envelope?.erro?.codigo ?? null };
+    };
+    expect(await codigo(["--conversa", T(TEL.semCliente)])).toEqual({ saida: 1, erro: "nao_encontrado" });
+    expect((await codigo(["--conversa", T(TEL.doisClientes)])).erro).toBe("vinculo_pendente");
+    expect((await codigo(["--conversa", T(TEL.unico), "--cliente-id", "9205"])).erro).toBe("entrada_invalida");
+    expect((await codigo(["--conversa", T(TEL.unico), "--email", "e-0123456789abcdef"])).saida).toBe(2);
+    expect((await codigo(["--conversa", "abc"])).saida).toBe(2);
+    expect((await dados<{ tarefas: unknown[] }>(p.painel("/api/tarefas"))).tarefas).toEqual([]);
+
+    // O instante é do servidor: o corpo que o traz é recusado.
+    const comInstante = p.agente("/api/tarefas", comCorpo({ tituloFixo: "responder", conversa: { canal: "whatsapp", id: T(TEL.unico), ate: "2099-01-01T00:00:00.000Z" } }));
+    expect(await recusa(comInstante)).toEqual({ status: 400, codigo: "entrada_invalida" });
+    // O mesmo cliente da conversa é aceito.
+    expect((await codigo(["--conversa", T(TEL.unico), "--cliente-id", "9201"])).saida).toBe(0);
+  });
+});
+
 describe("o CLI e as conversas", () => {
   test("meu-dia imprime os dois blocos com o nome do cliente do CRM e nunca texto de mensagem; ignorar conversa chega ao servidor", async () => {
     const p = await subirSincronizado();

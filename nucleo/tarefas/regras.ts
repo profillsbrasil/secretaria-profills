@@ -243,13 +243,14 @@ export interface ConversaDoMeuDia {
   readonly bloco: "responder" | "esperando_cliente";
   readonly clienteId: number;
   readonly nome: string;
+  readonly conversa: ConversaDaTarefa;
 }
 
-/** Responder cria "Responder", Esperando cliente cria "Acompanhar", os dois com o nome do cliente e vencendo hoje. */
-export function tarefaDaConversa(conversa: ConversaDoMeuDia, id: string, hoje: Dia): NovaTarefa {
-  const qual = conversa.bloco === "responder" ? "responder" : "acompanhar";
-  const nome = [...conversa.nome].slice(0, LIMITES_DA_TAREFA.clienteNome).join("");
-  return { id, tituloFixo: qual, titulo: tituloFixo(qual, nome), clienteId: String(conversa.clienteId), clienteNome: nome, venceEm: hoje };
+/** Responder cria "Responder", Esperando cliente cria "Acompanhar", os dois com o nome do cliente, vencendo hoje e presos à conversa. */
+export function tarefaDaConversa(origem: ConversaDoMeuDia, id: string, hoje: Dia): NovaTarefa {
+  const qual = origem.bloco === "responder" ? "responder" : "acompanhar";
+  const nome = [...origem.nome].slice(0, LIMITES_DA_TAREFA.clienteNome).join("");
+  return { id, tituloFixo: qual, titulo: tituloFixo(qual, nome), clienteId: String(origem.clienteId), clienteNome: nome, venceEm: hoje, conversa: origem.conversa };
 }
 
 export function criarTarefa(entrada: NovaTarefa, ctx: Contexto): Decisao & { readonly tarefa: Tarefa } {

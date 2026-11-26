@@ -451,7 +451,7 @@ const SEM_RESPOSTA: readonly string[] = ["servidor_fora_do_ar", "interno"];
 const SUBCOMANDOS_DE_TAREFA = ["criar", "listar", "ver", "concluir", "adiar", "descartar", "anotar"] as const;
 
 const USO_DE_TAREFA = [
-  `tarefa criar <${NOMES_DOS_TITULOS_FIXOS.join("|")}> [--vence AAAA-MM-DD] [--cliente-id <id no CRM>] [--proposta <código>] [--nota <texto>] [--id <uuid>]`,
+  `tarefa criar <${NOMES_DOS_TITULOS_FIXOS.join("|")}> [--vence AAAA-MM-DD] [--cliente-id <id no CRM>] [--conversa <telefone> | --email <id do item>] [--proposta <código>] [--nota <texto>] [--id <uuid>]`,
   "tarefa listar [--estado aberta|concluida|descartada]",
   "tarefa ver <id>",
   "tarefa concluir <id> --versao <n> [--nota <texto>] [--proximo <próximo passo> [--vence AAAA-MM-DD]]",
@@ -472,7 +472,7 @@ const CAMPOS: Readonly<Record<string, string>> = {
 };
 
 const OPCOES_DE_TAREFA: { readonly [S in (typeof SUBCOMANDOS_DE_TAREFA)[number]]: readonly string[] } = {
-  criar: ["vence", "cliente-id", "proposta", "nota", "id"],
+  criar: ["vence", "cliente-id", "conversa", "email", "proposta", "nota", "id"],
   listar: ["estado"],
   ver: [],
   concluir: ["versao", "nota", "proximo", "vence"],
@@ -483,6 +483,23 @@ const OPCOES_DE_TAREFA: { readonly [S in (typeof SUBCOMANDOS_DE_TAREFA)[number]]
 
 const SEM_NOME_DO_CLIENTE =
   "`tarefa criar` não aceita --cliente. O nome do cliente vem do CRM: passe `--cliente-id <id no CRM>`. Texto livre vai em `--nota`.";
+
+const USO_DA_CONVERSA_DA_TAREFA =
+  "`tarefa criar` aponta uma conversa só: `--conversa <telefone +5511999998888>` (WhatsApp) ou `--email <id do item, e-0123456789abcdef>` (e-mail), como em `ignorar`.";
+
+/**
+ * A conversa do Meu dia que a tarefa trata, como em `ignorar conversa` e `ignorar email`. `undefined`
+ * sem nenhuma das duas opções; `null` com as duas, sem valor ou fora da forma.
+ */
+function conversaDaTarefa(telefone: string | true | undefined, item: string | true | undefined): { canal: "whatsapp" | "email"; id: string } | null | undefined {
+  if (telefone === undefined && item === undefined) return undefined;
+  if (typeof telefone === "string" && item === undefined) {
+    const lido = lerTelefone(telefone.startsWith("+") ? telefone : `+${telefone}`);
+    return lido === null ? null : { canal: "whatsapp", id: lido };
+  }
+  if (typeof item === "string" && telefone === undefined) return lerIdDoItemDeEmail(item) === null ? null : { canal: "email", id: item };
+  return null;
+}
 
 function interpretarTarefa(args: Argumentos): Interpretado<PedidoDeTarefa> {
   const [sub, ...resto] = args.posicionais;
@@ -495,7 +512,7 @@ function interpretarTarefa(args: Argumentos): Interpretado<PedidoDeTarefa> {
   const corpo: Record<string, unknown> = {};
   for (const opcao of aceitas) {
     const valor = args.opcoes[opcao];
-    if (valor === undefined || opcao === "estado" || opcao === "versao") continue;
+    if (valor === undefined || opcao === "estado" || opcao === "versao" || opcao === "conversa" || opcao === "email") continue;
     if (valor === true) return errado(`\`--${opcao}\` precisa de um valor.`);
     corpo[CAMPOS[opcao] ?? opcao] = valor;
   }
@@ -520,8 +537,10 @@ function interpretarTarefa(args: Argumentos): Interpretado<PedidoDeTarefa> {
     if (!ehDaLista(NOMES_DOS_TITULOS_FIXOS, tituloFixo) || sobra.length > 0) {
       return errado(`Use \`tarefa criar <${NOMES_DOS_TITULOS_FIXOS.join("|")}>\`. O título sai dessa lista e do nome que o CRM dá ao \`--cliente-id\`; o texto livre vai em \`--nota\`.`);
     }
+    const conversa = conversaDaTarefa(args.opcoes.conversa, args.opcoes.email);
+    if (conversa === null) return errado(USO_DA_CONVERSA_DA_TAREFA);
     const id = typeof corpo.id === "string" ? corpo.id : crypto.randomUUID();
-    return certo({ metodo: "POST", caminho: "/api/tarefas", corpo: { ...corpo, tituloFixo, id }, idDaCriacao: id });
+    return certo({ metodo: "POST", caminho: "/api/tarefas", corpo: { ...corpo, ...(conversa === undefined ? {} : { conversa }), tituloFixo, id }, idDaCriacao: id });
   }
   const [id, ...textos] = resto;
   if (id === undefined || id === "") return errado(`Use \`tarefa ${sub} <id>\`.`);
@@ -686,7 +705,10 @@ const semEnviados = (rotulos: readonly string[]) =>
   rotulos.length === 0 ? "" : `; sem a pasta de enviados em ${rotulos.map((rotulo) => `"${rotulo}"`).join(", ")}: a Secretária não sabe o que o vendedor já respondeu por essa conta`;
 
 /** O cabeçalho de um bloco de conversas: a contagem, ou por que veio vazio, o `lido_em` do WhatsApp e, com conta de e-mail, a leitura do e-mail. */
-function cabecalhoDeConversas(titulo: string, bloco: { readonly itens: readonly unknown[]; readonly lido_em: string | null; readonly motivo: string | null; readonly cortado: boolean; readonly email: MeuDia["responder"]["email"] }): string {
+function cabecalhoDeConversas(
+  titulo: string,
+  bloco: { readonly itens: readonly unknown[]; readonly lido_em: string | null; readonly motivo: string | null; readonly cortado: boolean; readonly tratados: number; readonly email: MeuDia["responder"]["email"] },
+): string {
   const { email } = bloco;
   const doEmail =
     email.contas === 0
@@ -695,9 +717,10 @@ function cabecalhoDeConversas(titulo: string, bloco: { readonly itens: readonly 
   const lido = bloco.lido_em === null ? "" : `, lido em ${bloco.lido_em}`;
   const cortado = bloco.cortado ? ", lista cortada" : "";
   const emailNoFim = doEmail === "" ? "" : `; ${doEmail}`;
+  const tratados = bloco.tratados === 0 ? "" : `, ${bloco.tratados} fora por tarefa concluída até chegar mensagem nova`;
   const problemaDoWhatsapp = bloco.motivo !== null && bloco.motivo !== "sem_itens";
-  if (problemaDoWhatsapp && bloco.itens.length === 0) return `${titulo}: vazio (${bloco.motivo})${lido}${emailNoFim}.`;
-  return `${titulo} (${bloco.itens.length}${problemaDoWhatsapp ? `, WhatsApp: ${bloco.motivo}` : ""}${lido}${cortado}${emailNoFim}):`;
+  if (problemaDoWhatsapp && bloco.itens.length === 0) return `${titulo}: vazio (${bloco.motivo})${lido}${tratados}${emailNoFim}.`;
+  return `${titulo} (${bloco.itens.length}${problemaDoWhatsapp ? `, WhatsApp: ${bloco.motivo}` : ""}${lido}${cortado}${tratados}${emailNoFim}):`;
 }
 
 const comCidade = (cliente: { readonly nome: string; readonly cidade: string | null }) => `${cliente.nome}${cliente.cidade === null ? "" : ` (${cliente.cidade})`}`;

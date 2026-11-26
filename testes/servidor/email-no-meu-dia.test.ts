@@ -560,6 +560,62 @@ describe("criar tarefa de item de e-mail", () => {
   });
 });
 
+describe("concluir a tarefa de um item de e-mail", () => {
+  type Criada = { tarefa: { id: string; versao: number; conversa: unknown } };
+  const concluir = (p: Palco, criada: Criada) => dados<Criada>(p.painel(`/api/tarefas/${criada.tarefa.id}/concluir`, comCorpo({ versao: criada.tarefa.versao })));
+
+  test("concluir tira o item de Responder e de Esperando cliente, e o e-mail novo na conversa o traz de volta", async () => {
+    const c = await subir();
+    encher(c);
+    await sincronizar(c.p);
+    let dia = await meuDia(c.p);
+    const compras = emails(dia.responder).find((i) => i.endereco === REMETENTE.compras)!;
+    const esperado = emails(dia.esperando_cliente)[0]!;
+    const duplo = emails(dia.responder).find((i) => i.endereco === REMETENTE.duplo)!;
+    const deResponder = await dados<Criada>(criarTarefa(c.p, "painel", compras.id));
+    expect(deResponder.tarefa.conversa).toMatchObject({ canal: "email", chave: compras.id });
+    const deEsperando = await dados<Criada>(criarTarefa(c.p, "painel", esperado.id));
+    expect(emails((await meuDia(c.p)).responder).map((i) => i.id)).toContain(compras.id);
+
+    await concluir(c.p, deResponder);
+    await concluir(c.p, deEsperando);
+    dia = await meuDia(c.p);
+    expect(enderecos(dia.responder)).not.toContain(REMETENTE.compras);
+    expect(enderecos(dia.responder)).toContain(REMETENTE.duplo);
+    expect(dia.responder).toMatchObject({ tratados: 1, ignorados: 0 });
+    expect(dia.esperando_cliente).toMatchObject({ itens: [], tratados: 1 });
+    expect(emails(dia.responder).find((i) => i.id === duplo.id)).toBeDefined();
+
+    // Sincronizar de novo sem e-mail novo não traz de volta.
+    await sincronizar(c.p);
+    expect(enderecos((await meuDia(c.p)).responder)).not.toContain(REMETENTE.compras);
+
+    c.chegou(mensagem(8, REMETENTE.compras, 1, { messageId: "<m8@exemplo.test>", emRespostaA: "<m1@exemplo.test>", referencias: ["<m1@exemplo.test>"] }, c.agora));
+    await sincronizar(c.p);
+    dia = await meuDia(c.p);
+    expect(emails(dia.responder).find((i) => i.id === compras.id)).toMatchObject({ novas: 2 });
+    expect(dia.responder.tratados).toBe(0);
+  });
+
+  test("o agente prende a tarefa ao item pelo CLI com --email; item que não está nos blocos é nao_encontrado", async () => {
+    const c = await subir();
+    encher(c);
+    await sincronizar(c.p);
+    const compras = emails((await meuDia(c.p, "agente")).responder).find((i) => i.endereco === REMETENTE.compras)!;
+    const criada = await rodar(c.p.bancada.dirDados, ["tarefa", "criar", "responder", "--email", compras.id, "--json"]);
+    expect(criada.codigo).toBe(0);
+    const tarefa = (criada.envelope?.dados as { tarefa: { id: string; titulo: string; clienteId: string; conversa: unknown } }).tarefa;
+    expect(tarefa).toMatchObject({ titulo: "Responder: CANARIO Cliente 9301", clienteId: "9301", conversa: { canal: "email", chave: compras.id } });
+    expect(JSON.stringify(tarefa)).not.toContain(CANARIO.assunto);
+    expect((await rodar(c.p.bancada.dirDados, ["tarefa", "concluir", tarefa.id, "--versao", "1"])).codigo).toBe(0);
+    expect(enderecos((await meuDia(c.p, "agente")).responder)).not.toContain(REMETENTE.compras);
+
+    const fora = await rodar(c.p.bancada.dirDados, ["tarefa", "criar", "responder", "--email", "e-0123456789abcdef", "--json"]);
+    expect(fora.envelope?.erro?.codigo).toBe("nao_encontrado");
+    expect((await rodar(c.p.bancada.dirDados, ["tarefa", "criar", "responder", "--email", "compras"])).codigo).toBe(2);
+  });
+});
+
 describe("quarentena e canário", () => {
   function chegarSuspeito(c: Cenario): void {
     c.chegou(

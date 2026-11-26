@@ -1,6 +1,7 @@
 import { SEM_CONVERSAS, diaEm, falha, instante, ok, type DadosDasConversas, type Dia, type Ignorados, type Instante, type LeiturasDoCrm, type Resultado, type RetratoDosConectores } from "../../dominio";
 import type { RespostaDaTarefa } from "../../servidor";
 import {
+  conversasTratadas,
   criarTarefa,
   decidir,
   lerComando,
@@ -90,16 +91,18 @@ export function criarLoja(fixture: FixtureDeTarefas, agora: () => Date = () => n
   return {
     meuDia: (conectores, leituras, ignorados, conversas = SEM_CONVERSAS) => {
       const ctx = contexto("painel");
-      return montarMeuDia([...tarefas.values()].filter((t) => t.estado === "aberta"), conectores, ctx.agora, ctx.hoje, leituras, ignorados, conversas);
+      const todas = [...tarefas.values()];
+      const comTratadas = { ...conversas, tratadas: conversasTratadas(todas, "whatsapp") };
+      return montarMeuDia(todas.filter((t) => t.estado === "aberta"), conectores, ctx.agora, ctx.hoje, leituras, ignorados, comTratadas);
     },
     listar: (estado) => ({ tarefas: ordenar([...tarefas.values()].filter((t) => t.estado === estado)) }),
     ver: (id) => comNotas(id, null),
     criar: (corpo) => {
       const lido = lerCriacao(corpo, "painel");
       if (!lido.ok) return falha("entrada_invalida", lido.mensagem);
-      const { id } = lido.valor;
+      const { id } = lido.valor.tarefa;
       if (id !== undefined && tarefas.has(id)) return comNotas(id, null);
-      return comNotas(semear(lido.valor, "painel").id, null);
+      return comNotas(semear(lido.valor.tarefa, "painel").id, null);
     },
     criarDoCrm: (item, id) => (tarefas.has(id) ? comNotas(id, null) : comNotas(semear(tarefaDoCrm(item, id, contexto("painel").hoje), "painel").id, null)),
     criarDaConversa: (conversa, id) => (tarefas.has(id) ? comNotas(id, null) : comNotas(semear(tarefaDaConversa(conversa, id, contexto("painel").hoje), "painel").id, null)),

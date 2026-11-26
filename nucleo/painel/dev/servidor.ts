@@ -241,7 +241,8 @@ const servidor = Bun.serve({
           const conversa = palcoDoPedido(req).conversas.item(corpo.id, instante(new Date()));
           if (conversa === null) return responder(falha("nao_encontrado", "Esta conversa não está em Responder nem em Esperando cliente."));
           if (conversa.item.cliente === null) return responder(falha("vinculo_pendente"));
-          return responder(lojaDoPedido(req).criarDaConversa({ bloco: conversa.bloco, clienteId: conversa.item.cliente.id, nome: conversa.item.cliente.nome }, corpo.tarefaId));
+          const origem = { canal: "whatsapp", chave: corpo.id, ate: conversa.ultimaEm } as const;
+          return responder(lojaDoPedido(req).criarDaConversa({ bloco: conversa.bloco, clienteId: conversa.item.cliente.id, nome: conversa.item.cliente.nome, conversa: origem }, corpo.tarefaId));
         }
         const tipo = TIPOS_DE_IGNORADO.find((nome) => nome === corpo?.tipo);
         if (tipo === undefined || typeof corpo?.id !== "number" || typeof corpo.tarefaId !== "string") return responder(falha("entrada_invalida"));

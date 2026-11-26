@@ -289,7 +289,7 @@ describe("entrada na borda", () => {
 
   test("título vira uma linha de texto puro, sem caractere de controle", () => {
     const lido = lerCriacao({ titulo: "  Ligar\npara\u0007 a\tobra  " }, "painel");
-    expect(lido.ok && lido.valor.titulo).toBe("Ligar para a obra");
+    expect(lido.ok && lido.valor.tarefa.titulo).toBe("Ligar para a obra");
     const nota = lerComando("anotar", { texto: "linha 1\r\nlinha 2\u0000" });
     expect(nota.ok && nota.valor).toEqual({ acao: "anotar", texto: "linha 1\nlinha 2" });
   });
@@ -314,9 +314,9 @@ describe("entrada na borda", () => {
     for (const clienteId of ["Cliente Canário", "0", "08002", "2147483648", ""]) expect(lerCriacao({ tituloFixo: "ligar", clienteId }, "agente").ok).toBe(false);
 
     const comCliente = lerCriacao({ tituloFixo: "ligar", clienteId: " 8002 ", nota: "pediu retorno" }, "agente");
-    expect(comCliente.ok && comCliente.valor).toEqual({ titulo: "Ligar", tituloFixo: "ligar", clienteId: "8002", nota: "pediu retorno" });
+    expect(comCliente.ok && comCliente.valor.tarefa).toEqual({ titulo: "Ligar", tituloFixo: "ligar", clienteId: "8002", nota: "pediu retorno" });
     const semCliente = lerCriacao({ tituloFixo: "enviar_proposta" }, "agente");
-    expect(semCliente.ok && semCliente.valor).toEqual({ titulo: "Enviar proposta", tituloFixo: "enviar_proposta" });
+    expect(semCliente.ok && semCliente.valor.tarefa).toEqual({ titulo: "Enviar proposta", tituloFixo: "enviar_proposta" });
     const nomeLongo = comClienteDoCrm({ tituloFixo: "acompanhar_proposta", titulo: "Acompanhar proposta", clienteId: "8002" }, "c".repeat(300));
     expect([...nomeLongo.titulo]).toHaveLength(200);
     expect([...(nomeLongo.clienteNome ?? "")]).toHaveLength(200);
@@ -328,7 +328,7 @@ describe("entrada na borda", () => {
     const id = "6f1c2f0e-9d5b-4c1e-8a57-3b9e0c4d2a11";
     const lido = lerCriacao({ id, titulo: "Visitar" }, "painel");
     if (!lido.ok) throw new Error(lido.mensagem);
-    expect(criarTarefa(lido.valor, contexto("painel")).tarefa.id).toBe(id);
+    expect(criarTarefa(lido.valor.tarefa, contexto("painel")).tarefa.id).toBe(id);
     expect(lerCriacao({ id, tituloFixo: "visitar" }, "agente").ok).toBe(true);
     expect(lerCriacao({ id: "t-1", titulo: "Visitar" }, "painel").ok).toBe(false);
     expect(lerCriacao({ id: "../outra", tituloFixo: "visitar" }, "agente").ok).toBe(false);

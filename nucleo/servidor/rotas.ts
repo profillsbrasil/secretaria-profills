@@ -103,6 +103,7 @@ import {
 import {
   ACOES_DA_TAREFA,
   comClienteDoCrm,
+  conversasTratadas,
   criarTarefa,
   idDoClienteNoCrm,
   decidir,
@@ -115,6 +116,7 @@ import {
   type Contexto,
   type MeuDia,
   type NovaTarefa,
+  type PedidoDeConversa,
   type Tarefa,
   type TarefaComNotas,
 } from "../tarefas";
@@ -527,9 +529,16 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
     return comNotas(decisao.tarefa.id, null);
   }
 
-  /** As conversas como o Meu dia as lê: o cache da sincronização, os vínculos e as marcas. Não chama o wacli nem o CRM. */
+  /** As conversas como o Meu dia as lê: o cache da sincronização, os vínculos, as marcas e as tarefas concluídas. Não chama o wacli nem o CRM. */
   function dadosDasConversas(hoje: Dia): DadosDasConversas {
-    return { leitura: conectores.leituraDeConversas(), vinculos: listarVinculos(banco, "whatsapp"), ignoradas: conversasIgnoradasValendo(banco, "whatsapp", hoje), email: dadosDoEmail(hoje) };
+    const tarefas = listarTarefas(banco);
+    return {
+      leitura: conectores.leituraDeConversas(),
+      vinculos: listarVinculos(banco, "whatsapp"),
+      ignoradas: conversasIgnoradasValendo(banco, "whatsapp", hoje),
+      tratadas: conversasTratadas(tarefas, "whatsapp"),
+      email: { ...dadosDoEmail(hoje), tratadas: conversasTratadas(tarefas, "email") },
+    };
   }
 
   /**
@@ -550,6 +559,24 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
 
   function conversaDoMeuDia(canal: CanalDeVinculo, chave: string) {
     return conversaNoMeuDia(dadosDasConversas(diaEm(deps.agora())), canal, chave);
+  }
+
+  /**
+   * A tarefa do agente presa a uma conversa de Responder ou de Esperando cliente. O cliente da tarefa é
+   * o da conversa, e o instante que a tarefa cobre é o da leitura guardada, nunca o de quem pede.
+   */
+  function comConversaDoAgente(nova: NovaTarefa, pedido: PedidoDeConversa | null): Resultado<NovaTarefa> {
+    if (pedido === null) return ok(nova);
+    // O pedido repetido devolve a tarefa que existe, mesmo que a conversa tenha saído do bloco depois.
+    if (nova.id !== undefined && lerTarefa(banco, nova.id) !== null) return ok(nova);
+    const achada = conversaDoMeuDia(pedido.canal, pedido.id);
+    if (achada === null) return falha("nao_encontrado", "Esta conversa não está em Responder nem em Esperando cliente.");
+    const { cliente } = achada.item;
+    if (cliente === null) return falha("vinculo_pendente");
+    if (nova.clienteId !== undefined && nova.clienteId !== String(cliente.id)) {
+      return falha("entrada_invalida", `Esta conversa é do cliente ${cliente.id} no CRM, não do \`clienteId\` ${nova.clienteId}. Mande só a conversa: o cliente vem dela.`);
+    }
+    return ok({ ...nova, clienteId: String(cliente.id), conversa: { canal: pedido.canal, chave: pedido.id, ate: achada.ultimaEm } });
   }
 
   /**
@@ -819,7 +846,9 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
         const ctx = contexto(chamador);
         const lido = lerCriacao(corpo.valor, ctx.papel);
         if (!lido.ok) return respostaJson(falha("entrada_invalida", lido.mensagem), chamador);
-        return respostaJson(await criarConferindo(lido.valor, ctx), chamador);
+        const nova = comConversaDoAgente(lido.valor.tarefa, lido.valor.conversa);
+        if (!nova.ok) return respostaJson(nova, chamador);
+        return respostaJson(await criarConferindo(nova.dados, ctx), chamador);
       },
     },
     {
@@ -838,11 +867,13 @@ export function montarRotas(deps: DependenciasDasRotas): readonly Rota[] {
         }
         const ctx = contexto(chamador);
         if (lido.data.tipo === "conversa") {
-          const conversa = conversaDoMeuDia(lido.data.canal ?? "whatsapp", lido.data.id);
+          const canal = lido.data.canal ?? "whatsapp";
+          const conversa = conversaDoMeuDia(canal, lido.data.id);
           if (conversa === null) return respostaJson(falha("nao_encontrado", "Esta conversa não está em Responder nem em Esperando cliente."), chamador);
           if (conversa.item.cliente === null) return respostaJson(falha("vinculo_pendente"), chamador);
           const { id, nome } = conversa.item.cliente;
-          return respostaJson(await criarConferindo(tarefaDaConversa({ bloco: conversa.bloco, clienteId: id, nome }, lido.data.tarefaId, ctx.hoje), ctx), chamador);
+          const origem = { bloco: conversa.bloco, clienteId: id, nome, conversa: { canal, chave: lido.data.id, ate: conversa.ultimaEm } };
+          return respostaJson(await criarConferindo(tarefaDaConversa(origem, lido.data.tarefaId, ctx.hoje), ctx), chamador);
         }
         const item = itemDaLeitura(conectores.leiturasDoCrm(), lido.data.tipo, lido.data.id);
         if (item === null) return respostaJson(falha("nao_encontrado", "Este item não está na última leitura do CRM."), chamador);
