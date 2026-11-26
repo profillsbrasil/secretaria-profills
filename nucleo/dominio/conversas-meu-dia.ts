@@ -62,6 +62,8 @@ export interface DadosDoEmail {
   readonly lidoEm: ReadonlyMap<IdContaEmail, Instante>;
   /** Contas lidas sem a pasta de enviados (`contasSemEnviados`): a Secretária não vê o que o vendedor respondeu. */
   readonly semEnviados: ReadonlySet<IdContaEmail>;
+  /** As conversas que uma tarefa concluída tratou, pelo id do item, até o instante da última mensagem que ela cobre. */
+  readonly tratadas?: ReadonlyMap<string, Instante>;
 }
 
 export const SEM_EMAIL: DadosDoEmail = { contas: [], conversas: [], vinculos: new Map(), ignoradas: [], lidoEm: new Map(), semEnviados: new Set() };
@@ -71,6 +73,8 @@ export interface DadosDasConversas {
   /** Os vínculos de `whatsapp`, pelo telefone. */
   readonly vinculos: ReadonlyMap<string, VinculoDeContato>;
   readonly ignoradas: readonly MarcaDeConversaIgnorada[];
+  /** As conversas que uma tarefa concluída tratou, pelo telefone, até o instante da última mensagem que ela cobre. */
+  readonly tratadas?: ReadonlyMap<string, Instante>;
   readonly email?: DadosDoEmail;
 }
 
@@ -111,6 +115,8 @@ export interface BlocoDeConversas<I> {
   readonly cortado: boolean;
   /** Conversas dos dois canais que o vendedor tirou da lista. */
   readonly ignorados: number;
+  /** Conversas dos dois canais fora da lista porque uma tarefa delas foi concluída e não chegou mensagem depois. */
+  readonly tratados: number;
   readonly email: LeituraDoEmailNoBloco;
 }
 
@@ -225,9 +231,26 @@ function maisAntigaPrimeiro(
   return a.desde.localeCompare(b.desde) || (a.canal === b.canal ? 0 : a.canal === "whatsapp" ? -1 : 1) || chaveDoItem(a).localeCompare(chaveDoItem(b));
 }
 
-function blocoDoWhatsapp<I>(leitura: LeituraDeConversas | null, whatsapp: EstadoWhatsapp, itens: readonly I[], ignorados: number): Omit<BlocoDeConversas<I>, "email"> {
-  if (leitura === null) return { itens: [], lido_em: null, motivo: motivoSemLeitura(whatsapp), cortado: false, ignorados: 0 };
-  return { itens, lido_em: leitura.lidoEm, motivo: itens.length === 0 ? "sem_itens" : null, cortado: leitura.cortado, ignorados };
+/** Quantas conversas de um bloco ficaram fora da lista, e por quê. */
+interface Fora {
+  ignorados: number;
+  tratados: number;
+}
+
+/**
+ * Por que a conversa fica fora do bloco, ou `null` quando entra. A marca de ignorado vence. A tarefa
+ * concluída cobre a conversa até `ate`, a última mensagem que o servidor conhecia ao criá-la: mensagem
+ * depois disso, de quem for, traz a conversa de volta pelas regras de sempre.
+ */
+function motivoDeFora(ignoradas: ReadonlySet<string>, tratadas: ReadonlyMap<string, Instante> | undefined, chave: string, ultimaEm: Instante): keyof Fora | null {
+  if (ignoradas.has(chave)) return "ignorados";
+  const ate = tratadas?.get(chave);
+  return ate !== undefined && Date.parse(ate) >= Date.parse(ultimaEm) ? "tratados" : null;
+}
+
+function blocoDoWhatsapp<I>(leitura: LeituraDeConversas | null, whatsapp: EstadoWhatsapp, itens: readonly I[], fora: Fora): Omit<BlocoDeConversas<I>, "email"> {
+  if (leitura === null) return { itens: [], lido_em: null, motivo: motivoSemLeitura(whatsapp), cortado: false, ignorados: 0, tratados: 0 };
+  return { itens, lido_em: leitura.lidoEm, motivo: itens.length === 0 ? "sem_itens" : null, cortado: leitura.cortado, ...fora };
 }
 
 /** O remetente de uma conversa de e-mail com mensagem de fora e que o CRM ainda não vinculou: ficou para a próxima rodada. */
@@ -264,20 +287,15 @@ function leituraDoEmail(email: DadosDoEmail, temItem: boolean): LeituraDoEmailNo
 interface ItensDoEmail {
   readonly responder: ItemDeResponderDeEmail[];
   readonly esperando: ItemDeEsperandoDeEmail[];
-  readonly ignoradosEmResponder: number;
-  readonly ignoradosEmEsperando: number;
+  readonly foraDeResponder: Fora;
+  readonly foraDeEsperando: Fora;
 }
 
 /** Conversa de conta conectada, com vínculo `auto`, `confirmado` ou `ambiguo`, nos dois blocos. O vínculo vale na hora. */
 function itensDoEmail(email: DadosDoEmail): ItensDoEmail {
   const contas = new Map(email.contas.filter((conta) => conta.conectada).map((conta) => [conta.id, { id: conta.id, rotulo: conta.rotulo }]));
   const ignoradas = new Set(email.ignoradas.map((marca) => marca.id));
-  const saida: { responder: ItemDeResponderDeEmail[]; esperando: ItemDeEsperandoDeEmail[]; ignoradosEmResponder: number; ignoradosEmEsperando: number } = {
-    responder: [],
-    esperando: [],
-    ignoradosEmResponder: 0,
-    ignoradosEmEsperando: 0,
-  };
+  const saida: ItensDoEmail = { responder: [], esperando: [], foraDeResponder: { ignorados: 0, tratados: 0 }, foraDeEsperando: { ignorados: 0, tratados: 0 } };
   for (const conversa of email.conversas) {
     const { situacao } = conversa;
     const conta = contas.get(conversa.contaId);
@@ -286,10 +304,11 @@ function itensDoEmail(email: DadosDoEmail): ItensDoEmail {
     const quem = vinculo === undefined ? null : clienteOuDuvida(vinculo);
     if (quem === null) continue;
     const base = { canal: "email", id: conversa.id, conta, endereco: situacao.endereco, nome_do_remetente: situacao.nome, assunto: situacao.assunto, ultimo_email: situacao.ultimo_email, em_quarentena: situacao.em_quarentena } as const;
+    const fora = motivoDeFora(ignoradas, email.tratadas, conversa.id, conversa.ultimaEm);
     if (situacao.tipo === "responder") {
-      if (ignoradas.has(conversa.id)) saida.ignoradosEmResponder += 1;
+      if (fora !== null) saida.foraDeResponder[fora] += 1;
       else saida.responder.push({ ...base, desde: situacao.desde, novas: situacao.novas, mensagens_em_quarentena: situacao.mensagens_em_quarentena, ...quem });
-    } else if (ignoradas.has(conversa.id)) saida.ignoradosEmEsperando += 1;
+    } else if (fora !== null) saida.foraDeEsperando[fora] += 1;
     else saida.esperando.push({ ...base, desde: situacao.desde, dias_uteis: situacao.dias_uteis, ...quem });
   }
   return saida;
@@ -307,8 +326,8 @@ export function montarBlocosDeConversas(dados: DadosDasConversas, whatsapp: Esta
   const ignoradas = new Set(dados.ignoradas.map((marca) => marca.id));
   const responder: ItemDeResponder[] = [];
   const esperando: ItemDeEsperando[] = [];
-  let ignoradosEmResponder = 0;
-  let ignoradosEmEsperando = 0;
+  const foraDeResponder: Fora = { ignorados: 0, tratados: 0 };
+  const foraDeEsperando: Fora = { ignorados: 0, tratados: 0 };
 
   for (const lida of dados.leitura?.itens ?? []) {
     const vinculo = dados.vinculos.get(lida.telefone);
@@ -316,31 +335,34 @@ export function montarBlocosDeConversas(dados: DadosDasConversas, whatsapp: Esta
     if (quem === null) continue;
     const base = { canal: "whatsapp", conversa: lida.conversa, telefone: lida.telefone, nome_no_whatsapp: lida.nome } as const;
     const { situacao } = lida;
+    const fora = motivoDeFora(ignoradas, dados.tratadas, lida.telefone, lida.ultimaMensagemEm);
     if (situacao.tipo === "responder") {
       const resto = { desde: situacao.desde, novas: situacao.novas, em_quarentena: situacao.em_quarentena, mensagens_em_quarentena: situacao.mensagens_em_quarentena, tem_ilegiveis: situacao.tem_ilegiveis, mais_que_o_lido: situacao.mais_que_o_lido };
-      if (ignoradas.has(lida.telefone)) ignoradosEmResponder += 1;
+      if (fora !== null) foraDeResponder[fora] += 1;
       else responder.push({ ...base, ...resto, ...quem });
     } else if (situacao.tipo === "esperando") {
-      if (ignoradas.has(lida.telefone)) ignoradosEmEsperando += 1;
+      if (fora !== null) foraDeEsperando[fora] += 1;
       else esperando.push({ ...base, desde: situacao.desde, dias_uteis: situacao.dias_uteis, ...quem });
     }
   }
 
   const email = dados.email ?? SEM_EMAIL;
   const doEmail = itensDoEmail(email);
-  const doResponder = blocoDoWhatsapp<ItemDeResponder>(dados.leitura, whatsapp, responder, ignoradosEmResponder);
-  const doEsperando = blocoDoWhatsapp<ItemDeEsperando>(dados.leitura, whatsapp, esperando, ignoradosEmEsperando);
+  const doResponder = blocoDoWhatsapp<ItemDeResponder>(dados.leitura, whatsapp, responder, foraDeResponder);
+  const doEsperando = blocoDoWhatsapp<ItemDeEsperando>(dados.leitura, whatsapp, esperando, foraDeEsperando);
   return {
     responder: {
       ...doResponder,
       itens: [...responder, ...doEmail.responder].sort(maisAntigaPrimeiro),
-      ignorados: doResponder.ignorados + doEmail.ignoradosEmResponder,
+      ignorados: doResponder.ignorados + doEmail.foraDeResponder.ignorados,
+      tratados: doResponder.tratados + doEmail.foraDeResponder.tratados,
       email: leituraDoEmail(email, doEmail.responder.length > 0),
     },
     esperando_cliente: {
       ...doEsperando,
       itens: [...esperando, ...doEmail.esperando].sort(maisAntigaPrimeiro),
-      ignorados: doEsperando.ignorados + doEmail.ignoradosEmEsperando,
+      ignorados: doEsperando.ignorados + doEmail.foraDeEsperando.ignorados,
+      tratados: doEsperando.tratados + doEmail.foraDeEsperando.tratados,
       email: leituraDoEmail(email, doEmail.esperando.length > 0),
     },
   };
@@ -379,20 +401,25 @@ export function conversasIgnoradasPeloAgente(marcas: readonly MarcaDeConversaIgn
     .map(({ id, nome, motivo, ate }): IgnoradoDeConversa => ({ tipo: "conversa", canal, id, nome, codigo: null, motivo, ate }));
 }
 
+/** A conversa de um bloco, com o instante da última mensagem que a leitura guardada conhece. */
+export type ConversaAchada = ({ readonly bloco: "responder"; readonly item: ItemDeResponder } | { readonly bloco: "esperando_cliente"; readonly item: ItemDeEsperando }) & {
+  readonly ultimaEm: Instante;
+};
+
 /**
  * Onde a conversa de um canal está no Meu dia, pela chave (telefone ou id do item de e-mail), ou
- * `null` quando não está em nenhum bloco. Ignorada ainda conta: é o que Ignorar e Criar tarefa conferem.
+ * `null` quando não está em nenhum bloco. Ignorada ou tratada por tarefa concluída ainda conta: é o
+ * que Ignorar e Criar tarefa conferem.
  */
-export function conversaNoMeuDia(
-  dados: DadosDasConversas,
-  canal: CanalDeVinculo,
-  chave: string,
-): { readonly bloco: "responder"; readonly item: ItemDeResponder } | { readonly bloco: "esperando_cliente"; readonly item: ItemDeEsperando } | null {
+export function conversaNoMeuDia(dados: DadosDasConversas, canal: CanalDeVinculo, chave: string): ConversaAchada | null {
   const email = dados.email ?? SEM_EMAIL;
-  const blocos = montarBlocosDeConversas({ ...dados, ignoradas: [], email: { ...email, ignoradas: [] } }, { fase: "desconectado" });
+  const ultimaEm =
+    canal === "whatsapp" ? dados.leitura?.itens.find((lida) => lida.telefone === chave)?.ultimaMensagemEm : email.conversas.find((conversa) => conversa.id === chave)?.ultimaEm;
+  if (ultimaEm === undefined) return null;
+  const blocos = montarBlocosDeConversas({ ...dados, ignoradas: [], tratadas: new Map(), email: { ...email, ignoradas: [], tratadas: new Map() } }, { fase: "desconectado" });
   const doCanal = (item: ItemDeResponder | ItemDeEsperando) => item.canal === canal && chaveDoItem(item) === chave;
   const emResponder = blocos.responder.itens.find(doCanal);
-  if (emResponder !== undefined) return { bloco: "responder", item: emResponder };
+  if (emResponder !== undefined) return { bloco: "responder", item: emResponder, ultimaEm };
   const emEsperando = blocos.esperando_cliente.itens.find(doCanal);
-  return emEsperando === undefined ? null : { bloco: "esperando_cliente", item: emEsperando };
+  return emEsperando === undefined ? null : { bloco: "esperando_cliente", item: emEsperando, ultimaEm };
 }

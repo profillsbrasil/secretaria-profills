@@ -125,6 +125,27 @@ describe("tarefas no banco", () => {
     expect(() => banco.sqlite.run("DELETE FROM nota")).toThrow("nota só aceita inserção");
     expect(lerTarefa(banco, "t-painel-1")?.notas.map((n) => n.texto)).toEqual(["primeira"]);
   });
+
+  test("a conversa da tarefa vai e volta inteira, leva os três campos juntos e não muda depois", () => {
+    const { banco } = preparar();
+    const ctx = contexto();
+    const conversa = { canal: "whatsapp", chave: "+5541999990001", ate: "2026-11-11T11:00:00.000Z" as Instante } as const;
+    inserirTarefa(banco, criarTarefa({ titulo: "Responder", conversa }, ctx));
+    expect(lerTarefa(banco, "t-painel-1")?.tarefa.conversa).toEqual(conversa);
+    mudarTarefa(banco, "t-painel-1", (atual) => decidir(atual, { acao: "concluir", versao: 1 }, ctx));
+    expect(lerTarefa(banco, "t-painel-1")?.tarefa).toMatchObject({ estado: "concluida", conversa });
+
+    const inserir = (canal: string, chave: string, ate: string) =>
+      banco.sqlite.run(
+        `INSERT INTO tarefa (id, titulo, origem, criada_em, atualizada_em, conversa_canal, conversa_chave, conversa_ate) VALUES ('${crypto.randomUUID()}', 'x', 'vendedor', '${AGORA}', '${AGORA}', ${canal}, ${chave}, ${ate})`,
+      );
+    expect(() => inserir("'whatsapp'", "'+5541999990001'", "NULL")).toThrow("a conversa da tarefa leva canal, chave e ate juntos");
+    expect(() => inserir("NULL", "'+5541999990001'", `'${AGORA}'`)).toThrow("a conversa da tarefa leva canal, chave e ate juntos");
+    expect(() => inserir("'sms'", "'+5541999990001'", `'${AGORA}'`)).toThrow("a conversa da tarefa leva canal, chave e ate juntos");
+    expect(() => banco.sqlite.run(`UPDATE tarefa SET conversa_ate = '${AGORA}' WHERE id = 't-painel-1'`)).toThrow("a conversa da tarefa não muda");
+    expect(() => banco.sqlite.run("UPDATE tarefa SET conversa_canal = NULL, conversa_chave = NULL, conversa_ate = NULL WHERE id = 't-painel-1'")).toThrow("a conversa da tarefa não muda");
+    inserir("NULL", "NULL", "NULL");
+  });
 });
 
 describe("backup diário", () => {

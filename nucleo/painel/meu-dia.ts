@@ -142,12 +142,18 @@ function blocoSemLeitura<B extends { readonly motivo: MotivoDoBlocoDeConversas |
 
 const NOTA_DO_CORTE_DO_EMAIL = "Ainda há e-mails para conferir. Sincronize de novo.";
 
-function notasDasConversas(bloco: { readonly cortado: boolean; readonly ignorados: number; readonly email: LeituraDoEmailNoBloco }): string[] {
+function notaDosTratados(tratados: number): string[] {
+  if (tratados === 0) return [];
+  return [tratados === 1 ? "1 conversa saiu porque você concluiu a tarefa dela. Ela volta se chegar mensagem nova." : `${tratados} conversas saíram porque você concluiu as tarefas delas. Cada uma volta se chegar mensagem nova.`];
+}
+
+function notasDasConversas(bloco: { readonly cortado: boolean; readonly ignorados: number; readonly tratados: number; readonly email: LeituraDoEmailNoBloco }): string[] {
   return [
     ...(bloco.cortado ? [NOTA_DO_CORTE_DAS_CONVERSAS] : []),
     ...(bloco.email.cortado ? [NOTA_DO_CORTE_DO_EMAIL] : []),
     ...bloco.email.contas_sem_enviados.map((rotulo) => `A conta "${rotulo}" não mostrou a pasta de enviados. O e-mail que você já respondeu por ela continua em Responder.`),
     ...notaDosIgnorados(bloco.ignorados, "conversa ignorada", "conversas ignoradas"),
+    ...notaDosTratados(bloco.tratados),
   ];
 }
 

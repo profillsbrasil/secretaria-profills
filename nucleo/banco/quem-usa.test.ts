@@ -38,7 +38,7 @@ describe("nome de quem usa no banco", () => {
     migrar(banco.sqlite, { ...comum, pasta: antigas });
     banco.sqlite.run(`INSERT INTO instalacao (id, id_instalacao, criada_em) VALUES (1, 'base-antiga', '${T0}')`);
 
-    expect(migrar(banco.sqlite, { ...comum, pasta: PASTA_DO_NUCLEO }).aplicadas).toEqual(["0013_nome_de_quem_usa", "0014_conferencia_de_versao"]);
+    expect(migrar(banco.sqlite, { ...comum, pasta: PASTA_DO_NUCLEO }).aplicadas).toEqual(["0013_nome_de_quem_usa", "0014_conferencia_de_versao", "0015_conversa_da_tarefa", "0016_conversa_da_tarefa_fixa"]);
     expect(garantirInstalacao(banco, T1).id).toBe("base-antiga");
     expect(lerNomesGuardados(banco)).toEqual({ digitado: null, perguntadoEm: null, doCrm: null, doCrmLidoEm: null });
   });

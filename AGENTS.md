@@ -42,7 +42,7 @@ Rode um comando por chamada, sem `;`, `|`, `&&` nem parênteses: comando encadea
 | `bun secretaria relatorio [--de AAAA-MM-DD --ate AAAA-MM-DD]` | conta a atividade do vendedor: os atendimentos que ele registrou no CRM, lidos na hora, e as tarefas que concluiu; sem datas, a semana de segunda a hoje; com datas, até 92 dias |
 | `bun secretaria meu-dia` | tarefas atrasadas e de hoje, sem data, os cartões que esperam o vendedor aprovar no painel (`aprovar`, sem o texto), compromissos de hoje, propostas enviadas sem retorno, clientes sem atendimento, conversas do WhatsApp e e-mails de cliente para responder e esperando o cliente (nome do cliente no CRM, telefone ou endereço, rótulo da conta e contagens; em conversa ambígua, o nome da conversa no WhatsApp, citado como dado, ou o endereço, e os candidatos do CRM; nunca texto de mensagem nem o assunto fora do `--json`), os números e endereços que o vendedor marcou como não cliente (o telefone ou o endereço; o nome da conversa só no `--json`) e a idade de cada fonte |
 | `bun secretaria ignorar <proposta\|cliente> <id> --motivo <texto>` / `ignorar conversa <telefone> --motivo <texto>` / `ignorar email <id do item> --motivo <texto>` / `ignorar desfazer <proposta\|cliente\|conversa\|email> <id, telefone ou id do item>` | tira o item do Meu dia por 7 dias, com as palavras do vendedor / traz de volta |
-| `bun secretaria tarefa criar <título fixo> [--vence AAAA-MM-DD] [--cliente-id <id no CRM>] [--proposta <código>] [--nota <texto>] [--id <uuid>]` | cria tarefa; sem `--vence` fica sem data |
+| `bun secretaria tarefa criar <título fixo> [--vence AAAA-MM-DD] [--cliente-id <id no CRM>] [--conversa <telefone> \| --email <id do item>] [--proposta <código>] [--nota <texto>] [--id <uuid>]` | cria tarefa; sem `--vence` fica sem data |
 | `bun secretaria tarefa listar [--estado aberta\|concluida\|descartada]` / `ver <id>` | lista / mostra uma com as notas |
 | `bun secretaria tarefa concluir <id> --versao <n> [--nota <texto>] [--proximo <passo> [--vence AAAA-MM-DD]]` | conclui; com `--proximo`, cria a tarefa seguinte junto |
 | `bun secretaria tarefa adiar <id> --versao <n> --para AAAA-MM-DD` / `descartar <id> --versao <n>` | muda o prazo / descarta |
@@ -58,6 +58,8 @@ O `meu-dia` mostra a última leitura, com `lido_em`. Os seus comandos não sincr
 Item do CRM com cadastro incompleto chega só como contagem: diga quantos e que o vendedor corrige o cadastro no CRM, sem procurar qual é por outro caminho.
 
 O botão Criar tarefa do Meu dia, no painel, cria a tarefa vencendo hoje.
+
+Tarefa de uma conversa de Responder ou Esperando cliente leva `--conversa` ou `--email`, e o cliente vem da conversa. Concluída, a conversa sai do bloco até chegar mensagem nova, contada em `tratados`. Fora dos blocos é `nao_encontrado`; `ambiguo`, `vinculo_pendente`; `--cliente-id` de outro cliente, `entrada_invalida`.
 
 O `relatorio` lê o CRM na hora e não guarda nada. Contagem `null` é "não li", nunca zero. Siga a skill `relatorio`.
 

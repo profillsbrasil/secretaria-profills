@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { diaEm, lerDia, type ContaEmailComEstado, type Dia, type EnderecoEmail, type IdContaEmail, type Instante, type RetratoDosConectores } from "../dominio";
 import {
   comClienteDoCrm,
+  conversasTratadas,
   criarTarefa,
   decidir,
   lerComando,
@@ -38,6 +39,7 @@ function tarefa(campos: Partial<Tarefa> = {}): Tarefa {
     versao: 3,
     criadaEm: "2026-11-01T12:00:00.000Z" as Instante,
     atualizadaEm: "2026-11-01T12:00:00.000Z" as Instante,
+    conversa: null,
     ...campos,
   };
 }
@@ -287,7 +289,7 @@ describe("entrada na borda", () => {
 
   test("título vira uma linha de texto puro, sem caractere de controle", () => {
     const lido = lerCriacao({ titulo: "  Ligar\npara\u0007 a\tobra  " }, "painel");
-    expect(lido.ok && lido.valor.titulo).toBe("Ligar para a obra");
+    expect(lido.ok && lido.valor.tarefa.titulo).toBe("Ligar para a obra");
     const nota = lerComando("anotar", { texto: "linha 1\r\nlinha 2\u0000" });
     expect(nota.ok && nota.valor).toEqual({ acao: "anotar", texto: "linha 1\nlinha 2" });
   });
@@ -312,9 +314,9 @@ describe("entrada na borda", () => {
     for (const clienteId of ["Cliente Canário", "0", "08002", "2147483648", ""]) expect(lerCriacao({ tituloFixo: "ligar", clienteId }, "agente").ok).toBe(false);
 
     const comCliente = lerCriacao({ tituloFixo: "ligar", clienteId: " 8002 ", nota: "pediu retorno" }, "agente");
-    expect(comCliente.ok && comCliente.valor).toEqual({ titulo: "Ligar", tituloFixo: "ligar", clienteId: "8002", nota: "pediu retorno" });
+    expect(comCliente.ok && comCliente.valor.tarefa).toEqual({ titulo: "Ligar", tituloFixo: "ligar", clienteId: "8002", nota: "pediu retorno" });
     const semCliente = lerCriacao({ tituloFixo: "enviar_proposta" }, "agente");
-    expect(semCliente.ok && semCliente.valor).toEqual({ titulo: "Enviar proposta", tituloFixo: "enviar_proposta" });
+    expect(semCliente.ok && semCliente.valor.tarefa).toEqual({ titulo: "Enviar proposta", tituloFixo: "enviar_proposta" });
     const nomeLongo = comClienteDoCrm({ tituloFixo: "acompanhar_proposta", titulo: "Acompanhar proposta", clienteId: "8002" }, "c".repeat(300));
     expect([...nomeLongo.titulo]).toHaveLength(200);
     expect([...(nomeLongo.clienteNome ?? "")]).toHaveLength(200);
@@ -326,9 +328,34 @@ describe("entrada na borda", () => {
     const id = "6f1c2f0e-9d5b-4c1e-8a57-3b9e0c4d2a11";
     const lido = lerCriacao({ id, titulo: "Visitar" }, "painel");
     if (!lido.ok) throw new Error(lido.mensagem);
-    expect(criarTarefa(lido.valor, contexto("painel")).tarefa.id).toBe(id);
+    expect(criarTarefa(lido.valor.tarefa, contexto("painel")).tarefa.id).toBe(id);
     expect(lerCriacao({ id, tituloFixo: "visitar" }, "agente").ok).toBe(true);
     expect(lerCriacao({ id: "t-1", titulo: "Visitar" }, "painel").ok).toBe(false);
     expect(lerCriacao({ id: "../outra", tituloFixo: "visitar" }, "agente").ok).toBe(false);
+  });
+});
+
+describe("conversas tratadas por tarefa concluída", () => {
+  const ate = (hora: string) => `2026-11-11T${hora}:00.000Z` as Instante;
+  const ligada = (id: string, estado: EstadoDaTarefa, canal: "whatsapp" | "email", chave: string, hora: string) => tarefa({ id, estado, conversa: { canal, chave, ate: ate(hora) } });
+
+  test("só a concluída conta, a maior entre as concluídas vence, e cada canal fica no seu", () => {
+    const tarefas = [
+      ligada("a", "concluida", "whatsapp", "+5541999990001", "10:00"),
+      ligada("b", "concluida", "whatsapp", "+5541999990001", "12:00"),
+      ligada("c", "aberta", "whatsapp", "+5541999990001", "14:00"),
+      ligada("d", "descartada", "whatsapp", "+5541999990002", "14:00"),
+      ligada("e", "concluida", "email", "e-0123456789abcdef", "09:00"),
+      tarefa({ id: "f", estado: "concluida" }),
+    ];
+    expect([...conversasTratadas(tarefas, "whatsapp")]).toEqual([["+5541999990001", ate("12:00")]]);
+    expect([...conversasTratadas(tarefas, "email")]).toEqual([["e-0123456789abcdef", ate("09:00")]]);
+  });
+
+  test("o próximo passo do concluir nasce sem a conversa", () => {
+    const atual = tarefa({ conversa: { canal: "whatsapp", chave: "+5541999990001", ate: ate("10:00") } });
+    const decisao = decidir(atual, { acao: "concluir", versao: atual.versao, proximoPasso: "Mandar a tabela" }, contexto("painel"));
+    expect(decisao.ok && decisao.dados.tarefa?.conversa).toEqual(atual.conversa);
+    expect(decisao.ok && decisao.dados.seguinte?.conversa).toBeNull();
   });
 });
