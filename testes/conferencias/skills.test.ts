@@ -159,6 +159,29 @@ describe("skills da Secretária", () => {
     }
   });
 
+  test("o INSTALAR.md diz o que a máquina precisa, com o comando ou o link de cada sistema, e o setup aponta para lá", () => {
+    const instalar = lerNaRaiz("INSTALAR.md");
+    const precisa = secao(instalar, "## O que a máquina precisa");
+    const pedacos = [
+      "`git --version`",
+      "peça o OK",
+      "`winget install --id Git.Git -e --source winget --accept-source-agreements --accept-package-agreements`",
+      "`xcode-select --install`",
+      "`sudo apt install -y git curl unzip`",
+      "https://git-scm.com/install/windows",
+      "https://git-scm.com/install/mac",
+      "https://git-scm.com/install/linux",
+      "Não instale Node",
+    ];
+    expect(pedacos.filter((pedaco) => !precisa.includes(pedaco))).toEqual([]);
+    expect(instalar.indexOf("2. Confira o que a máquina precisa")).toBeLessThan(instalar.indexOf("3. Rode os comandos do sistema"));
+    const setup = ler("secretaria-setup");
+    for (const titulo of ["## 1. Instalar", "## 6. CRM do agente"]) {
+      expect({ titulo, aponta: secao(setup, titulo).includes('siga "O que a máquina precisa", no `INSTALAR.md` da raiz') }).toEqual({ titulo, aponta: true });
+    }
+    expect(secao(setup, "## 6. CRM do agente")).toContain("rode `git --version`");
+  });
+
   test("o ambiente_invalido está no README e na skill de setup", () => {
     expect(lerNaRaiz("README.md")).toContain("`ambiente_invalido`");
     expect(secao(ler("secretaria-setup"), "## 2. Abrir o painel")).toContain("| `ambiente_invalido`, em qualquer comando |");
