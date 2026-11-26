@@ -844,6 +844,11 @@ describe("e-mail nos blocos de conversas", () => {
     ]);
     const esperando = comEsperando([], leitura({ cortado: true }), { ...NO_WA, ignorados: 1 });
     expect(lido(esperando, "esperando-cliente").notas).toEqual(["Ainda há e-mails para conferir. Sincronize de novo.", "1 conversa ignorada por 7 dias."]);
+    expect(lido(comResponder([], leitura(), { ...NO_WA, tratados: 2 }), "responder").notas).toEqual(["2 conversas saíram porque você concluiu as tarefas delas. Cada uma volta se chegar mensagem nova."]);
+    expect(lido(comEsperando([], leitura(), { ...NO_WA, ignorados: 1, tratados: 1 }), "esperando-cliente").notas).toEqual([
+      "1 conversa ignorada por 7 dias.",
+      "1 conversa saiu porque você concluiu a tarefa dela. Ela volta se chegar mensagem nova.",
+    ]);
     expect(lido(comResponder([], leitura()), "responder").notas).toEqual([]);
   });
 
